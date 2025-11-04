@@ -1,0 +1,14 @@
+[project]
+name = "beancount-taiwan"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "python-lsp-server>=1.13.1",
+    "ruff>=0.14.3",
+]
