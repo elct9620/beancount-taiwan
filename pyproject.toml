@@ -4,7 +4,17 @@ version = "0.1.0"
 description = "Beancount data importer tailored for Taiwanese banks, credit cards, and local transaction formats."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "beancount>=3.0.0",
+    "typer>=0.15.1",
+]
+
+[project.scripts]
+bean-tw = "beancount_taiwan.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
