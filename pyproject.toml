@@ -1,7 +1,7 @@
 [project]
 name = "beancount-taiwan"
 version = "0.1.0"
-description = "Add your description here"
+description = "Beancount data importer tailored for Taiwanese banks, credit cards, and local transaction formats."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
