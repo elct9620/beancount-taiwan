@@ -62,7 +62,7 @@ When adding support for a new bank or credit card:
 ## Architecture Notes
 
 - **CLI Framework**: Uses typer for command-line interface with automatic help generation
-- **Beancount Integration**: Depends on beancount>=3.0.0 and beangulp>=1.0.0 for transaction format compatibility
+- **Beancount Integration**: Depends on beancount>=3.0.0 and beangulp>=0.2.0 for transaction format compatibility
 - **Modular Design**: Each bank/card importer should be a separate module
 - The `cli.py` serves as the command router, individual importers handle parsing logic
 
