@@ -51,20 +51,35 @@ pytest
 pytest path/to/test_file.py::test_function
 ```
 
-## Adding New Importers
+## Architecture
 
-When adding support for a new bank or credit card:
-1. Create a new module in `src/beantw/` for the importer
-2. Add a new command in `cli.py` using `@app.command()` decorator
-3. Follow typer conventions for CLI interface design
-4. Importers should output valid Beancount format
+The project follows **Clean Architecture** principles (see docs/ARCHITECTURE.md for full details):
 
-## Architecture Notes
+### Layers
+- **CLI (Adapters)**: `cli.py` handles command-line arguments and invokes use cases
+- **Use Cases**: Core business logic in `usecases/` (e.g., `convert_hsbc_credit_card.py`, `convert_esunsec.py`)
+  - Should NOT depend on external libraries/frameworks
+  - Use dependency inversion - depend on abstractions, not implementations
+- **Importers (Frameworks & Drivers)**: Low-level modules in `importers/` that interact with Beancount and parse specific formats
+  - Implement interfaces defined by use cases
 
-- **CLI Framework**: Uses typer for command-line interface with automatic help generation
-- **Beancount Integration**: Depends on beancount>=3.0.0 and beangulp>=0.2.0 for transaction format compatibility
-- **Modular Design**: Each bank/card importer should be a separate module
-- The `cli.py` serves as the command router, individual importers handle parsing logic
+### Adding New Importers
+
+Follow BDD + TDD workflow when adding support for a new data format:
+
+1. **Read feature documentation** in `docs/features/import_[format_identifier].md` (must exist before implementation)
+2. **Write tests** in `tests/test_importers/test_[format_identifier].py` based on feature requirements
+3. **Implement parser** in `src/beantw/importers/[format_identifier].py` (implements interface from use case)
+4. **Implement use case** in `src/beantw/usecases/convert_[format_identifier].py` (pure business logic, no framework dependencies)
+5. **Add CLI command** in `cli.py` using `@app.command()` that instantiates and invokes the use case
+
+Note: Use descriptive format identifiers that include both institution and data type (e.g., `hsbc_credit_card` for HSBC credit cards, `esunsec` for E.SUN Securities broker data).
+
+### Key Dependencies
+
+- **typer>=0.15.1**: CLI framework with automatic help generation
+- **beangulp>=0.2.0**: Importer framework for Beancount
+- **beancount>=3.0.0**: Core accounting engine and transaction format
 
 ## Testing
 
