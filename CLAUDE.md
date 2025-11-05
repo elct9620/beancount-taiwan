@@ -16,7 +16,7 @@ This project uses:
 ## Package Structure
 
 - **src-layout**: The project uses standard Python src-layout
-- **Entry Point**: `src/beancount_taiwan/cli.py` contains the typer-based CLI
+- **Entry Point**: `src/beantw/cli.py` contains the typer-based CLI
 - **Command**: The `bean-tw` command is configured in `pyproject.toml` under `[project.scripts]`
 
 ## Common Commands
@@ -54,7 +54,7 @@ pytest path/to/test_file.py::test_function
 ## Adding New Importers
 
 When adding support for a new bank or credit card:
-1. Create a new module in `src/beancount_taiwan/` for the importer
+1. Create a new module in `src/beantw/` for the importer
 2. Add a new command in `cli.py` using `@app.command()` decorator
 3. Follow typer conventions for CLI interface design
 4. Importers should output valid Beancount format
@@ -62,7 +62,7 @@ When adding support for a new bank or credit card:
 ## Architecture Notes
 
 - **CLI Framework**: Uses typer for command-line interface with automatic help generation
-- **Beancount Integration**: Depends on beancount>=3.0.0 for transaction format compatibility
+- **Beancount Integration**: Depends on beancount>=3.0.0 and beangulp>=0.2.0 for transaction format compatibility
 - **Modular Design**: Each bank/card importer should be a separate module
 - The `cli.py` serves as the command router, individual importers handle parsing logic
 
