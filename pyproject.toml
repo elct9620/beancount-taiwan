@@ -6,11 +6,12 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "beancount>=3.0.0",
+    "beangulp>=1.0.0",
     "typer>=0.15.1",
 ]
 
 [project.scripts]
-bean-tw = "beancount_taiwan.cli:main"
+bean-tw = "beantw.cli:main"
 
 [build-system]
 requires = ["hatchling"]
