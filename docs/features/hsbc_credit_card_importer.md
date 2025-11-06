@@ -17,7 +17,37 @@ bean-tw convert path/to/hsbc_credit_card_statement.json
 
 ## Configuration
 
+Each importer has its own config to provide default account mapping or special handling.
 
+```yaml
+# config/hsbc_credit_card_importer.yaml
+default:
+    account:
+        credit_card: Liabilities:CreditCard:HSBC:Travelers
+        expense: Expenses:Life
+        payment_asset: Assets:Bank:Checking
+
+rules:
+    - name: foreign_currency_expense
+      description_contains: "國外交易手續費"
+      expense_account: Expenses:BankFees
+    - type: payment
+      description_contains: "全國繳費網"
+      payment_asset_account: Assets:Bank:PostOffice
+
+cards:
+    - name: "Travelers"
+      card_no_suffix: "1234"
+      accounts:
+          credit_card: Liabilities:CreditCard:HSBC:Travelers
+          expense: Expenses:Travel
+          payment_asset: Assets:Bank:TravelersChecking
+    rules:
+        - name: foreign_currency_expense
+          description_contains: "FOREIGN TRANSACTION FEE"
+          expense_account: Expenses:BankFees
+
+```
 
 ## Scenarios
 
