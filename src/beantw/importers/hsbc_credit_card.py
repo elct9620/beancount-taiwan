@@ -9,15 +9,18 @@ from beancount.core import data
 from beancount.core.amount import Amount
 from beangulp import Importer
 
+from beantw.config import HSBCCreditCardConfig
+
 
 class HSBCCreditCardImporter(Importer):
     """Importer for HSBC credit card statement JSON files."""
 
     def __init__(
         self,
-        credit_card_account: str,
-        expense_account: str,
-        payment_asset_account: str,
+        credit_card_account: str | None = None,
+        expense_account: str | None = None,
+        payment_asset_account: str | None = None,
+        config: HSBCCreditCardConfig | None = None,
     ):
         """Initialize the HSBC credit card importer.
 
@@ -25,10 +28,26 @@ class HSBCCreditCardImporter(Importer):
             credit_card_account: The Beancount account for the credit card liability
             expense_account: The default expense account for transactions
             payment_asset_account: The asset account for payment transactions
+            config: Optional configuration object for advanced features like rules and card-specific configs
         """
-        self.credit_card_account = credit_card_account
-        self.expense_account = expense_account
-        self.payment_asset_account = payment_asset_account
+        if config:
+            self.config = config
+            # Use config defaults if individual params not provided
+            self.credit_card_account = (
+                credit_card_account or config.default_accounts.credit_card
+            )
+            self.expense_account = expense_account or config.default_accounts.expense
+            self.payment_asset_account = (
+                payment_asset_account or config.default_accounts.payment_asset
+            )
+        else:
+            # Use provided accounts or fall back to hardcoded defaults
+            self.credit_card_account = (
+                credit_card_account or "Liabilities:CreditCard:HSBC:Travelers"
+            )
+            self.expense_account = expense_account or "Expenses:Life"
+            self.payment_asset_account = payment_asset_account or "Assets:Bank:Checking"
+            self.config = None
 
     def account(self, filepath: str) -> str:
         """Return the primary account for this importer.
@@ -152,6 +171,16 @@ class HSBCCreditCardImporter(Importer):
             foreign_amount = txn.get("amount", "0")
             foreign_currency = txn.get("amtCy", "").strip()
 
+            # Determine accounts based on configuration
+            if self.config:
+                credit_card_account, expense_account, payment_asset_account = (
+                    self.config.get_accounts_for_transaction(txn)
+                )
+            else:
+                credit_card_account = self.credit_card_account
+                expense_account = self.expense_account
+                payment_asset_account = self.payment_asset_account
+
             # Create postings based on transaction type
             postings = []
 
@@ -159,7 +188,7 @@ class HSBCCreditCardImporter(Importer):
             if ntd_amount < 0:
                 postings.append(
                     data.Posting(
-                        account=self.credit_card_account,
+                        account=credit_card_account,
                         units=Amount(ntd_amount, "TWD"),
                         cost=None,
                         price=None,
@@ -169,7 +198,7 @@ class HSBCCreditCardImporter(Importer):
                 )
                 postings.append(
                     data.Posting(
-                        account=self.payment_asset_account,
+                        account=payment_asset_account,
                         units=None,  # Balancing posting
                         cost=None,
                         price=None,
@@ -182,7 +211,7 @@ class HSBCCreditCardImporter(Importer):
                 foreign_amt = Decimal(foreign_amount)
                 postings.append(
                     data.Posting(
-                        account=self.expense_account,
+                        account=expense_account,
                         units=Amount(foreign_amt, foreign_currency),
                         cost=None,
                         price=Amount(ntd_amount, "TWD"),  # Total price in TWD
@@ -192,7 +221,7 @@ class HSBCCreditCardImporter(Importer):
                 )
                 postings.append(
                     data.Posting(
-                        account=self.credit_card_account,
+                        account=credit_card_account,
                         units=None,  # Balancing posting
                         cost=None,
                         price=None,
@@ -204,7 +233,7 @@ class HSBCCreditCardImporter(Importer):
             else:
                 postings.append(
                     data.Posting(
-                        account=self.expense_account,
+                        account=expense_account,
                         units=Amount(ntd_amount, "TWD"),
                         cost=None,
                         price=None,
@@ -214,7 +243,7 @@ class HSBCCreditCardImporter(Importer):
                 )
                 postings.append(
                     data.Posting(
-                        account=self.credit_card_account,
+                        account=credit_card_account,
                         units=None,  # Balancing posting
                         cost=None,
                         price=None,
