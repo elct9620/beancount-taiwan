@@ -227,7 +227,9 @@ class HSBCCreditCardImporter(Importer):
                 postings.append(
                     data.Posting(
                         account=payment_asset_account,
-                        units=Amount(ntd_amount, "TWD"),  # Negative amount - money leaves bank
+                        units=Amount(
+                            ntd_amount, "TWD"
+                        ),  # Negative amount - money leaves bank
                         cost=None,
                         price=None,
                         flag=None,
