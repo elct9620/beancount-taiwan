@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 from beancount.core import data
 from beancount.core.amount import Amount
-from beancount.core.position import Cost
 from decimal import Decimal
 
 from beantw.config import HSBCCreditCardConfig, Rule
@@ -131,11 +130,13 @@ def test_import_hsbc_credit_card_foreign_currency_expense(importer, temp_json_fi
     # Check postings
     assert len(entry.postings) == 2
 
-    # Expense posting with foreign currency and total cost
+    # Expense posting with foreign currency and per-unit price
     expense_posting = entry.postings[0]
     assert expense_posting.account == "Expenses:Life"
     assert expense_posting.units == Amount(Decimal("20.00"), "USD")
-    assert expense_posting.cost == Cost(Decimal("600.00"), "TWD", None, None)
+    # Per-unit price should be 600 / 20 = 30 TWD per USD
+    assert expense_posting.cost is None
+    assert expense_posting.price == Amount(Decimal("30"), "TWD")
 
     # Credit card posting
     cc_posting = entry.postings[1]
