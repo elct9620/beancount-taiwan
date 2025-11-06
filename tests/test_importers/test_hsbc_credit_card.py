@@ -180,15 +180,18 @@ def test_import_hsbc_credit_card_payment(importer, temp_json_file):
     assert isinstance(entry, data.Transaction)
     assert entry.narration == "PAYMENT RECEIVED"
 
-    # Check postings for payment (negative amount reduces liability)
+    # Check postings for payment
     assert len(entry.postings) == 2
 
-    cc_posting = entry.postings[0]
-    assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
-    assert cc_posting.units == Amount(Decimal("-5000.00"), "TWD")
-
-    asset_posting = entry.postings[1]
+    # First posting: Assets decrease (money leaves bank)
+    asset_posting = entry.postings[0]
     assert asset_posting.account == "Assets:Bank:Checking"
+    assert asset_posting.units == Amount(Decimal("-5000.00"), "TWD")
+
+    # Second posting: Liability account gets positive credit (balancing)
+    cc_posting = entry.postings[1]
+    assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
+    assert cc_posting.units is None  # Balancing posting
 
 
 def test_import_hsbc_credit_card_foreign_transaction_fee(importer, temp_json_file):
@@ -409,15 +412,19 @@ def test_import_hsbc_credit_card_payment_reduces_liability(importer, temp_json_f
     # When I extract entries
     entries = importer.extract(temp_json_file.name)
 
-    # Then I should get a transaction that reduces the credit card liability
+    # Then I should get a payment transaction with correct posting order
     assert len(entries) == 1
     entry = entries[0]
 
-    # The credit card posting should have -1000 TWD
-    # This REDUCES the liability (balance goes down)
-    cc_posting = entry.postings[0]
+    # First posting: Asset account (money leaves bank)
+    asset_posting = entry.postings[0]
+    assert asset_posting.account == "Assets:Bank:Checking"
+    assert asset_posting.units == Amount(Decimal("-1000.00"), "TWD")
+
+    # Second posting: Credit card liability (balancing, positive credit)
+    cc_posting = entry.postings[1]
     assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
-    assert cc_posting.units == Amount(Decimal("-1000.00"), "TWD")
+    assert cc_posting.units is None  # Balancing posting
 
     # Verify with Beancount's parser that this transaction balances correctly
     txn_text = printer.format_entry(entry)
@@ -427,11 +434,12 @@ option "operating_currency" "TWD"
 
 2020-01-01 open Assets:Bank:Checking
 2020-01-01 open Liabilities:CreditCard:HSBC:Travelers
+2020-01-01 open Equity:Opening-Balances
 
-; Start with 5000 TWD owed on credit card
+; Start with -5000 TWD on credit card (negative = owed to bank)
 2025-08-01 * "Opening balance"
-  Liabilities:CreditCard:HSBC:Travelers  5000.00 TWD
-  Assets:Bank:Checking
+  Liabilities:CreditCard:HSBC:Travelers  -5000.00 TWD
+  Equity:Opening-Balances                 5000.00 TWD
 
 {txn_text}
 """
@@ -441,7 +449,7 @@ option "operating_currency" "TWD"
 
     assert len(errors) == 0, f"Beancount validation errors: {errors}"
 
-    # Calculate the final balance - should be 5000 - 1000 = 4000 TWD owed
+    # Calculate the final balance - should be -5000 + 1000 = -4000 TWD (owed)
     from beancount.core import realization
 
     real_root = realization.realize(loaded_entries)
@@ -450,10 +458,10 @@ option "operating_currency" "TWD"
     # Get the balance
     balance = cc_real.balance
 
-    # The liability should be 4000 TWD (5000 initial - 1000 payment)
-    # In Beancount, liabilities are positive when you owe money
-    assert balance.get_currency_units("TWD") == Amount(Decimal("4000.00"), "TWD"), (
-        f"Expected credit card balance of 4000 TWD (owed), got {balance}"
+    # The liability should be -4000 TWD (-5000 initial + 1000 payment credit)
+    # In Beancount, liabilities are negative when you owe money
+    assert balance.get_currency_units("TWD") == Amount(Decimal("-4000.00"), "TWD"), (
+        f"Expected credit card balance of -4000 TWD (owed), got {balance}"
     )
 
 
