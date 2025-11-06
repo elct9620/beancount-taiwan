@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from beantw.config import HSBCCreditCardConfig
 from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
 from beantw.usecases.convert_hsbc_credit_card import ConvertHSBCCreditCardUseCase
 
@@ -20,36 +21,64 @@ def convert(
         dir_okay=False,
         readable=True,
     ),
-    credit_card_account: str = typer.Option(
-        "Liabilities:CreditCard:HSBC:Travelers",
+    config_file: Path | None = typer.Option(
+        None,
+        "--config",
+        "-f",
+        help="Path to YAML configuration file with account mappings and rules (default: config/hsbc_credit_card_importer.yaml if exists)",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    credit_card_account: str | None = typer.Option(
+        None,
         "--credit-card-account",
         "-c",
-        help="Credit card liability account",
+        help="Credit card liability account (overrides config file)",
     ),
-    expense_account: str = typer.Option(
-        "Expenses:Life",
+    expense_account: str | None = typer.Option(
+        None,
         "--expense-account",
         "-e",
-        help="Default expense account",
+        help="Default expense account (overrides config file)",
     ),
-    payment_asset_account: str = typer.Option(
-        "Assets:Bank:Checking",
+    payment_asset_account: str | None = typer.Option(
+        None,
         "--payment-asset-account",
         "-p",
-        help="Asset account for payments",
+        help="Asset account for payments (overrides config file)",
     ),
 ):
     """Convert HSBC credit card statement JSON to Beancount format.
 
     Reads an HSBC credit card statement JSON file (manually copied from HSBC API)
     and converts it to Beancount entries, outputting them to standard output.
+
+    You can use a YAML configuration file to specify account mappings, rules for
+    automatically categorizing transactions, and card-specific settings.
+    If no config file is specified, the tool will automatically look for
+    config/hsbc_credit_card_importer.yaml in the current directory.
+    Command-line options override config file settings.
     """
     try:
+        # Determine which config file to use
+        config_path = config_file
+        if config_path is None:
+            # Check for default config file location
+            default_config = Path("config/hsbc_credit_card_importer.yaml")
+            if default_config.exists():
+                config_path = default_config
+
+        # Load configuration if available
+        config = HSBCCreditCardConfig(config_path) if config_path else None
+
         # Create importer with configuration
         importer = HSBCCreditCardImporter(
             credit_card_account=credit_card_account,
             expense_account=expense_account,
             payment_asset_account=payment_asset_account,
+            config=config,
         )
 
         # Create and execute use case

@@ -9,6 +9,7 @@ from beancount.core import data
 from beancount.core.amount import Amount
 from decimal import Decimal
 
+from beantw.config import HSBCCreditCardConfig, Rule
 from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
 
 
@@ -325,3 +326,47 @@ def test_multiple_transactions(importer, temp_json_file):
     assert len(entries) == 2
     assert entries[0].narration == "TRANSACTION 1"
     assert entries[1].narration == "TRANSACTION 2"
+
+
+def test_import_with_config_rule_matching(temp_json_file):
+    """Test that importer applies configuration rules correctly."""
+    # Given a config with a rule for foreign transaction fees
+    config = HSBCCreditCardConfig()
+    config.rules.append(
+        Rule(description_contains="國外交易手續費", expense_account="Expenses:BankFees")
+    )
+
+    # And an importer using this config
+    importer = HSBCCreditCardImporter(config=config)
+
+    # And a transaction matching the rule
+    statement = {
+        "payload": [
+            {
+                "amount": "0",
+                "description": "國外交易手續費",
+                "amtCy": "   ",
+                "txnLoc": "",
+                "txnDate": "2025/09/03",
+                "cyCnvDate": "",
+                "postingDate": "2025/09/04",
+                "ntdAmount": "39",
+                "isForeignTxn": False,
+                "isInstallmentTxn": False,
+                "cardNo": "",
+                "relationShip": "",
+            }
+        ]
+    }
+
+    json.dump(statement, temp_json_file)
+    temp_json_file.flush()
+
+    # When extracting entries
+    entries = importer.extract(temp_json_file.name)
+
+    # Then the rule should apply the BankFees account
+    assert len(entries) == 1
+    entry = entries[0]
+    expense_posting = entry.postings[0]
+    assert expense_posting.account == "Expenses:BankFees"
