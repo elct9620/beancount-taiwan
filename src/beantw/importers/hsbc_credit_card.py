@@ -7,7 +7,6 @@ from typing import Any
 
 from beancount.core import data
 from beancount.core.amount import Amount
-from beancount.core.position import Cost
 from beangulp import Importer
 
 from beantw.config import HSBCCreditCardConfig
@@ -222,12 +221,15 @@ class HSBCCreditCardImporter(Importer):
             # Foreign currency transaction
             elif is_foreign and foreign_currency and foreign_amount:
                 foreign_amt = Decimal(foreign_amount)
+                # Calculate per-unit price (total TWD / foreign currency units)
+                # This is equivalent to Beancount's @@ to @ conversion
+                per_unit_price = ntd_amount / foreign_amt
                 postings.append(
                     data.Posting(
                         account=expense_account,
                         units=Amount(foreign_amt, foreign_currency),
-                        cost=Cost(ntd_amount, "TWD", None, None),  # Total cost in TWD
-                        price=None,
+                        cost=None,
+                        price=Amount(per_unit_price, "TWD"),  # Per-unit price in TWD
                         flag=None,
                         meta=None,
                     )
