@@ -443,7 +443,6 @@ option "operating_currency" "TWD"
 
     # Calculate the final balance - should be 5000 - 1000 = 4000 TWD owed
     from beancount.core import realization
-    from beancount.core import prices
 
     real_root = realization.realize(loaded_entries)
     cc_real = realization.get(real_root, "Liabilities:CreditCard:HSBC:Travelers")
