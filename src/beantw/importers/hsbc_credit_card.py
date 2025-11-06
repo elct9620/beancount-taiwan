@@ -3,12 +3,10 @@
 import json
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 from beancount.core import data
 from beancount.core.amount import Amount
-from beancount.core.number import D
 from beangulp import Importer
 
 
@@ -96,9 +94,7 @@ class HSBCCreditCardImporter(Importer):
             with open(filepath, "r", encoding="utf-8") as f:
                 statement_data = json.load(f)
         except (json.JSONDecodeError, IOError) as e:
-            raise ValueError(
-                f"Failed to read JSON file: {filepath}. Error: {e}"
-            ) from e
+            raise ValueError(f"Failed to read JSON file: {filepath}. Error: {e}") from e
 
         if "payload" not in statement_data:
             raise ValueError(

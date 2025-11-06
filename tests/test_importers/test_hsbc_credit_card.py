@@ -25,7 +25,7 @@ def importer():
 @pytest.fixture
 def temp_json_file():
     """Create a temporary JSON file and clean it up after test."""
-    temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+    temp_file = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
     yield temp_file
     temp_file.close()
     Path(temp_file.name).unlink(missing_ok=True)
@@ -48,7 +48,7 @@ def test_import_hsbc_credit_card_expense(importer, temp_json_file):
                 "isForeignTxn": False,
                 "isInstallmentTxn": False,
                 "cardNo": "1234",
-                "relationShip": "P"
+                "relationShip": "P",
             }
         ]
     }
@@ -102,7 +102,7 @@ def test_import_hsbc_credit_card_foreign_currency_expense(importer, temp_json_fi
                 "isForeignTxn": True,
                 "isInstallmentTxn": False,
                 "cardNo": "1234",
-                "relationShip": ""
+                "relationShip": "",
             }
         ]
     }
@@ -157,7 +157,7 @@ def test_import_hsbc_credit_card_payment(importer, temp_json_file):
                 "isForeignTxn": False,
                 "isInstallmentTxn": False,
                 "cardNo": "1234",
-                "relationShip": ""
+                "relationShip": "",
             }
         ]
     }
@@ -203,7 +203,7 @@ def test_import_hsbc_credit_card_foreign_transaction_fee(importer, temp_json_fil
                 "isForeignTxn": False,
                 "isInstallmentTxn": False,
                 "cardNo": "",
-                "relationShip": ""
+                "relationShip": "",
             }
         ]
     }
@@ -228,9 +228,7 @@ def test_import_hsbc_credit_card_foreign_transaction_fee(importer, temp_json_fil
 def test_handle_invalid_json_file(importer, temp_json_file):
     """Test error handling for invalid JSON structure."""
     # Given an invalid HSBC credit card statement payload
-    invalid_statement = {
-        "invalid_key": []
-    }
+    invalid_statement = {"invalid_key": []}
 
     json.dump(invalid_statement, temp_json_file)
     temp_json_file.flush()
@@ -251,7 +249,7 @@ def test_identify_hsbc_credit_card_file(importer, temp_json_file):
                 "txnDate": "2025/07/29",
                 "postingDate": "2025/08/04",
                 "ntdAmount": "100",
-                "cardNo": "1234"
+                "cardNo": "1234",
             }
         ]
     }
@@ -269,9 +267,7 @@ def test_identify_hsbc_credit_card_file(importer, temp_json_file):
 def test_reject_non_hsbc_file(importer, temp_json_file):
     """Test that non-HSBC files are rejected."""
     # Given a file with different structure
-    other_file = {
-        "data": []
-    }
+    other_file = {"data": []}
 
     json.dump(other_file, temp_json_file)
     temp_json_file.flush()
@@ -300,7 +296,7 @@ def test_multiple_transactions(importer, temp_json_file):
                 "isForeignTxn": False,
                 "isInstallmentTxn": False,
                 "cardNo": "1234",
-                "relationShip": "P"
+                "relationShip": "P",
             },
             {
                 "amount": "0",
@@ -314,8 +310,8 @@ def test_multiple_transactions(importer, temp_json_file):
                 "isForeignTxn": False,
                 "isInstallmentTxn": False,
                 "cardNo": "1234",
-                "relationShip": "P"
-            }
+                "relationShip": "P",
+            },
         ]
     }
 
