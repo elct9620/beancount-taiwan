@@ -11,12 +11,6 @@ app = typer.Typer(help="Beancount data importer for Taiwanese banks and credit c
 
 
 @app.command()
-def hello():
-    """Test command to verify CLI is working."""
-    typer.echo("Hello from beancount-taiwan!")
-
-
-@app.command()
 def convert(
     filepath: Path = typer.Argument(
         ...,
