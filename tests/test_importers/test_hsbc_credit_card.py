@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 from beancount.core import data
 from beancount.core.amount import Amount
+from beancount.parser import printer
+from beancount.loader import load_string
 from decimal import Decimal
+import subprocess
 
 from beantw.config import HSBCCreditCardConfig, Rule
 from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
@@ -372,3 +375,96 @@ def test_import_with_config_rule_matching(temp_json_file):
     entry = entries[0]
     expense_posting = entry.postings[0]
     assert expense_posting.account == "Expenses:BankFees"
+
+
+def test_import_hsbc_jpy_rounding_scenario(importer, temp_json_file):
+    """Test importing JPY transaction with non-terminating decimal per-unit price.
+
+    This test verifies that the per-unit price calculation handles rounding
+    correctly for cases like 5500 JPY / 1136 TWD where the per-unit price
+    is a non-terminating decimal (0.2065454545...).
+    """
+    # Given a foreign currency transaction with JPY
+    statement = {
+        "payload": [
+            {
+                "amount": "5500",
+                "description": "JPY TRANSACTION WITH ROUNDING",
+                "amtCy": "JPY",
+                "txnLoc": "Japan",
+                "txnDate": "2025/08/01",
+                "cyCnvDate": "2025/08/02",
+                "postingDate": "2025/08/03",
+                "ntdAmount": "1136",
+                "isForeignTxn": True,
+                "isInstallmentTxn": False,
+                "cardNo": "1234",
+                "relationShip": "",
+            }
+        ]
+    }
+
+    json.dump(statement, temp_json_file)
+    temp_json_file.flush()
+
+    # When I extract entries from the file
+    entries = importer.extract(temp_json_file.name)
+
+    # Then the output should contain a properly balanced transaction
+    assert len(entries) == 1
+    entry = entries[0]
+
+    assert isinstance(entry, data.Transaction)
+    assert entry.narration == "JPY TRANSACTION WITH ROUNDING"
+
+    # Check postings
+    assert len(entry.postings) == 2
+
+    # Expense posting with JPY and per-unit price
+    expense_posting = entry.postings[0]
+    assert expense_posting.account == "Expenses:Life"
+    assert expense_posting.units == Amount(Decimal("5500"), "JPY")
+    assert expense_posting.cost is None
+
+    # Per-unit price should be 1136 / 5500 = 0.2065454545...
+    expected_per_unit_price = Decimal("1136") / Decimal("5500")
+    assert expense_posting.price == Amount(expected_per_unit_price, "TWD")
+
+    # Verify the calculated total matches the original TWD amount
+    # When Beancount calculates: 5500 JPY @ (1136/5500) TWD
+    # The result should balance to exactly 1136 TWD
+    calculated_total = expense_posting.units.number * expense_posting.price.number
+    assert calculated_total == Decimal("1136")
+
+    # Credit card posting (balancing)
+    cc_posting = entry.postings[1]
+    assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
+    assert cc_posting.units is None  # Balancing posting
+
+    # Verify Beancount can properly balance this transaction
+    # Print the transaction to verify the format
+    txn_text = printer.format_entry(entry)
+    print(f"\nGenerated transaction:\n{txn_text}")
+
+    # Test that we can load this transaction with Beancount's parser
+    # This is the definitive test - if Beancount can parse and validate it, it's correct
+    beancount_file_content = f"""
+option "operating_currency" "TWD"
+
+2020-01-01 open Expenses:Life
+2020-01-01 open Liabilities:CreditCard:HSBC:Travelers
+
+{txn_text}
+"""
+    # Load and validate using Beancount's loader
+    loaded_entries, errors, options = load_string(beancount_file_content)
+
+    # Check there are no errors
+    assert len(errors) == 0, (
+        f"Beancount failed to parse/validate JPY rounding scenario. "
+        f"Errors: {errors}\n"
+        f"Content:\n{beancount_file_content}"
+    )
+
+    # Verify we got the transaction (plus 2 open directives)
+    assert len(loaded_entries) == 3, f"Expected 3 entries, got {len(loaded_entries)}"
