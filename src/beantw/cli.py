@@ -25,7 +25,7 @@ def convert(
         None,
         "--config",
         "-f",
-        help="Path to YAML configuration file with account mappings and rules",
+        help="Path to YAML configuration file with account mappings and rules (default: config/hsbc_credit_card_importer.yaml if exists)",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -57,11 +57,21 @@ def convert(
 
     You can use a YAML configuration file to specify account mappings, rules for
     automatically categorizing transactions, and card-specific settings.
+    If no config file is specified, the tool will automatically look for
+    config/hsbc_credit_card_importer.yaml in the current directory.
     Command-line options override config file settings.
     """
     try:
-        # Load configuration if provided
-        config = HSBCCreditCardConfig(config_file) if config_file else None
+        # Determine which config file to use
+        config_path = config_file
+        if config_path is None:
+            # Check for default config file location
+            default_config = Path("config/hsbc_credit_card_importer.yaml")
+            if default_config.exists():
+                config_path = default_config
+
+        # Load configuration if available
+        config = HSBCCreditCardConfig(config_path) if config_path else None
 
         # Create importer with configuration
         importer = HSBCCreditCardImporter(

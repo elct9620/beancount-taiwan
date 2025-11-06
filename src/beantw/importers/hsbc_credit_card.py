@@ -30,8 +30,14 @@ class HSBCCreditCardImporter(Importer):
             payment_asset_account: The asset account for payment transactions
             config: Optional configuration object for advanced features like rules and card-specific configs
         """
+        self.config = config
+
+        # Store which accounts were explicitly provided (for CLI overrides)
+        self._explicit_credit_card = credit_card_account
+        self._explicit_expense = expense_account
+        self._explicit_payment_asset = payment_asset_account
+
         if config:
-            self.config = config
             # Use config defaults if individual params not provided
             self.credit_card_account = (
                 credit_card_account or config.default_accounts.credit_card
@@ -47,7 +53,6 @@ class HSBCCreditCardImporter(Importer):
             )
             self.expense_account = expense_account or "Expenses:Life"
             self.payment_asset_account = payment_asset_account or "Assets:Bank:Checking"
-            self.config = None
 
     def account(self, filepath: str) -> str:
         """Return the primary account for this importer.
@@ -176,6 +181,13 @@ class HSBCCreditCardImporter(Importer):
                 credit_card_account, expense_account, payment_asset_account = (
                     self.config.get_accounts_for_transaction(txn)
                 )
+                # Apply CLI overrides if they were explicitly provided
+                if self._explicit_credit_card:
+                    credit_card_account = self._explicit_credit_card
+                if self._explicit_expense:
+                    expense_account = self._explicit_expense
+                if self._explicit_payment_asset:
+                    payment_asset_account = self._explicit_payment_asset
             else:
                 credit_card_account = self.credit_card_account
                 expense_account = self.expense_account
