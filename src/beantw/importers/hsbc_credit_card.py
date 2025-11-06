@@ -226,8 +226,8 @@ class HSBCCreditCardImporter(Importer):
             elif ntd_amount < 0:
                 postings.append(
                     data.Posting(
-                        account=credit_card_account,
-                        units=Amount(ntd_amount, "TWD"),
+                        account=payment_asset_account,
+                        units=Amount(ntd_amount, "TWD"),  # Negative amount - money leaves bank
                         cost=None,
                         price=None,
                         flag=None,
@@ -236,8 +236,8 @@ class HSBCCreditCardImporter(Importer):
                 )
                 postings.append(
                     data.Posting(
-                        account=payment_asset_account,
-                        units=None,  # Balancing posting
+                        account=credit_card_account,
+                        units=None,  # Balancing posting - positive to credit the liability
                         cost=None,
                         price=None,
                         flag=None,
