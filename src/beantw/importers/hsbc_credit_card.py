@@ -7,6 +7,7 @@ from typing import Any
 
 from beancount.core import data
 from beancount.core.amount import Amount
+from beancount.core.position import Cost
 from beangulp import Importer
 
 from beantw.config import HSBCCreditCardConfig
@@ -225,8 +226,8 @@ class HSBCCreditCardImporter(Importer):
                     data.Posting(
                         account=expense_account,
                         units=Amount(foreign_amt, foreign_currency),
-                        cost=None,
-                        price=Amount(ntd_amount, "TWD"),  # Total price in TWD
+                        cost=Cost(ntd_amount, "TWD", None, None),  # Total cost in TWD
+                        price=None,
                         flag=None,
                         meta=None,
                     )
