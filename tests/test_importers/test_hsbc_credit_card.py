@@ -376,6 +376,141 @@ def test_import_with_config_rule_matching(temp_json_file):
     assert expense_posting.account == "Expenses:BankFees"
 
 
+def test_import_hsbc_credit_card_payment_reduces_liability(importer, temp_json_file):
+    """Test that negative ntdAmount correctly reduces credit card liability.
+
+    This test explicitly verifies that when ntdAmount = -1000 (payment),
+    the credit card balance is REDUCED by 1000 (liability decreases),
+    not increased.
+    """
+    # Given a payment transaction with ntdAmount = -1000
+    statement = {
+        "payload": [
+            {
+                "amount": "0",
+                "description": "PAYMENT -1000",
+                "amtCy": "",
+                "txnLoc": "",
+                "txnDate": "2025/08/15",
+                "cyCnvDate": "",
+                "postingDate": "2025/08/16",
+                "ntdAmount": "-1000",  # Negative = payment
+                "isForeignTxn": False,
+                "isInstallmentTxn": False,
+                "cardNo": "1234",
+                "relationShip": "",
+            }
+        ]
+    }
+
+    json.dump(statement, temp_json_file)
+    temp_json_file.flush()
+
+    # When I extract entries
+    entries = importer.extract(temp_json_file.name)
+
+    # Then I should get a transaction that reduces the credit card liability
+    assert len(entries) == 1
+    entry = entries[0]
+
+    # The credit card posting should have -1000 TWD
+    # This REDUCES the liability (balance goes down)
+    cc_posting = entry.postings[0]
+    assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
+    assert cc_posting.units == Amount(Decimal("-1000.00"), "TWD")
+
+    # Verify with Beancount's parser that this transaction balances correctly
+    txn_text = printer.format_entry(entry)
+
+    beancount_file_content = f"""
+option "operating_currency" "TWD"
+
+2020-01-01 open Assets:Bank:Checking
+2020-01-01 open Liabilities:CreditCard:HSBC:Travelers
+
+; Start with 5000 TWD owed on credit card
+2025-08-01 * "Opening balance"
+  Liabilities:CreditCard:HSBC:Travelers  5000.00 TWD
+  Assets:Bank:Checking
+
+{txn_text}
+"""
+
+    # Load and validate
+    loaded_entries, errors, options = load_string(beancount_file_content)
+
+    assert len(errors) == 0, f"Beancount validation errors: {errors}"
+
+    # Calculate the final balance - should be 5000 - 1000 = 4000 TWD owed
+    from beancount.core import realization
+
+    real_root = realization.realize(loaded_entries)
+    cc_real = realization.get(real_root, "Liabilities:CreditCard:HSBC:Travelers")
+
+    # Get the balance
+    balance = cc_real.balance
+
+    # The liability should be 4000 TWD (5000 initial - 1000 payment)
+    # In Beancount, liabilities are positive when you owe money
+    assert balance.get_currency_units("TWD") == Amount(Decimal("4000.00"), "TWD"), (
+        f"Expected credit card balance of 4000 TWD (owed), got {balance}"
+    )
+
+
+def test_import_hsbc_credit_card_foreign_currency_refund(importer, temp_json_file):
+    """Test importing a foreign currency refund (negative amount)."""
+    # Given a foreign currency refund transaction with negative ntdAmount
+    statement = {
+        "payload": [
+            {
+                "amount": "20",
+                "description": "REFUND FROM FOREIGN MERCHANT",
+                "amtCy": "USD",
+                "txnLoc": "USA",
+                "txnDate": "2025/08/10",
+                "cyCnvDate": "2025/08/11",
+                "postingDate": "2025/08/12",
+                "ntdAmount": "-600",  # Negative amount = refund
+                "isForeignTxn": True,
+                "isInstallmentTxn": False,
+                "cardNo": "1234",
+                "relationShip": "",
+            }
+        ]
+    }
+
+    json.dump(statement, temp_json_file)
+    temp_json_file.flush()
+
+    # When I extract entries from the file
+    entries = importer.extract(temp_json_file.name)
+
+    # Then the output should contain Beancount entries with foreign currency handling
+    assert len(entries) == 1
+    entry = entries[0]
+
+    assert isinstance(entry, data.Transaction)
+    assert entry.narration == "REFUND FROM FOREIGN MERCHANT"
+
+    # Check postings - should still use foreign currency with per-unit price
+    assert len(entry.postings) == 2
+
+    # Expense posting with foreign currency and per-unit price
+    # Note: The foreign amount from HSBC is always positive (20 USD)
+    # But the per-unit price will be negative because ntdAmount is negative
+    expense_posting = entry.postings[0]
+    assert expense_posting.account == "Expenses:Life"
+    assert expense_posting.units == Amount(Decimal("20.00"), "USD")
+    # Per-unit price should be -600 / 20 = -30 TWD per USD (negative for refund)
+    assert expense_posting.cost is None
+    assert expense_posting.price == Amount(Decimal("-30"), "TWD")
+
+    # Credit card posting (balancing)
+    cc_posting = entry.postings[1]
+    assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
+    assert cc_posting.units is None  # Balancing posting
+
+
 def test_import_hsbc_jpy_rounding_scenario(importer, temp_json_file):
     """Test importing JPY transaction with non-terminating decimal per-unit price.
 

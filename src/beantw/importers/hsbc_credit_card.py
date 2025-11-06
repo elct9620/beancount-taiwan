@@ -196,30 +196,8 @@ class HSBCCreditCardImporter(Importer):
             # Create postings based on transaction type
             postings = []
 
-            # Payment transaction (negative amount)
-            if ntd_amount < 0:
-                postings.append(
-                    data.Posting(
-                        account=credit_card_account,
-                        units=Amount(ntd_amount, "TWD"),
-                        cost=None,
-                        price=None,
-                        flag=None,
-                        meta=None,
-                    )
-                )
-                postings.append(
-                    data.Posting(
-                        account=payment_asset_account,
-                        units=None,  # Balancing posting
-                        cost=None,
-                        price=None,
-                        flag=None,
-                        meta=None,
-                    )
-                )
-            # Foreign currency transaction
-            elif is_foreign and foreign_currency and foreign_amount:
+            # Foreign currency transaction (check this first, regardless of sign)
+            if is_foreign and foreign_currency and foreign_amount:
                 foreign_amt = Decimal(foreign_amount)
                 # Calculate per-unit price (total TWD / foreign currency units)
                 # This is equivalent to Beancount's @@ to @ conversion
@@ -237,6 +215,28 @@ class HSBCCreditCardImporter(Importer):
                 postings.append(
                     data.Posting(
                         account=credit_card_account,
+                        units=None,  # Balancing posting
+                        cost=None,
+                        price=None,
+                        flag=None,
+                        meta=None,
+                    )
+                )
+            # Payment transaction (negative amount, non-foreign)
+            elif ntd_amount < 0:
+                postings.append(
+                    data.Posting(
+                        account=credit_card_account,
+                        units=Amount(ntd_amount, "TWD"),
+                        cost=None,
+                        price=None,
+                        flag=None,
+                        meta=None,
+                    )
+                )
+                postings.append(
+                    data.Posting(
+                        account=payment_asset_account,
                         units=None,  # Balancing posting
                         cost=None,
                         price=None,
