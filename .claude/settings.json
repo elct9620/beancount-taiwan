@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Evaluate whether the Claude Code should stop working. Context: $ARGUMENTS\n\nEnsure all code changes has test covered and pass the tests. All user requirements are met. Approve to stop if not code changes or user requirements are missing."
+            "prompt": "Evaluate whether the Claude Code should stop working. Context: $ARGUMENTS\n\nEnsure code changes has test covered and pass the tests. All user requirements are met. Approve to stop if not code changes or user requirements are missing.\n\nRespond with JSON: {\"decision\": \"approve\" or \"block\", \"reason\": \"your explanation\"}"
           }
         ]
       }
