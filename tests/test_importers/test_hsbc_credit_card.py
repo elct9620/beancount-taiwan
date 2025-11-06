@@ -376,6 +376,60 @@ def test_import_with_config_rule_matching(temp_json_file):
     assert expense_posting.account == "Expenses:BankFees"
 
 
+def test_import_hsbc_credit_card_foreign_currency_refund(importer, temp_json_file):
+    """Test importing a foreign currency refund (negative amount)."""
+    # Given a foreign currency refund transaction with negative ntdAmount
+    statement = {
+        "payload": [
+            {
+                "amount": "20",
+                "description": "REFUND FROM FOREIGN MERCHANT",
+                "amtCy": "USD",
+                "txnLoc": "USA",
+                "txnDate": "2025/08/10",
+                "cyCnvDate": "2025/08/11",
+                "postingDate": "2025/08/12",
+                "ntdAmount": "-600",  # Negative amount = refund
+                "isForeignTxn": True,
+                "isInstallmentTxn": False,
+                "cardNo": "1234",
+                "relationShip": "",
+            }
+        ]
+    }
+
+    json.dump(statement, temp_json_file)
+    temp_json_file.flush()
+
+    # When I extract entries from the file
+    entries = importer.extract(temp_json_file.name)
+
+    # Then the output should contain Beancount entries with foreign currency handling
+    assert len(entries) == 1
+    entry = entries[0]
+
+    assert isinstance(entry, data.Transaction)
+    assert entry.narration == "REFUND FROM FOREIGN MERCHANT"
+
+    # Check postings - should still use foreign currency with per-unit price
+    assert len(entry.postings) == 2
+
+    # Expense posting with foreign currency and per-unit price
+    # Note: The foreign amount from HSBC is always positive (20 USD)
+    # But the per-unit price will be negative because ntdAmount is negative
+    expense_posting = entry.postings[0]
+    assert expense_posting.account == "Expenses:Life"
+    assert expense_posting.units == Amount(Decimal("20.00"), "USD")
+    # Per-unit price should be -600 / 20 = -30 TWD per USD (negative for refund)
+    assert expense_posting.cost is None
+    assert expense_posting.price == Amount(Decimal("-30"), "TWD")
+
+    # Credit card posting (balancing)
+    cc_posting = entry.postings[1]
+    assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
+    assert cc_posting.units is None  # Balancing posting
+
+
 def test_import_hsbc_jpy_rounding_scenario(importer, temp_json_file):
     """Test importing JPY transaction with non-terminating decimal per-unit price.
 
