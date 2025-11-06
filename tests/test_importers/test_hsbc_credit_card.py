@@ -452,8 +452,9 @@ option "operating_currency" "TWD"
 
     # The liability should be 4000 TWD (5000 initial - 1000 payment)
     # In Beancount, liabilities are positive when you owe money
-    assert balance.get_currency_units("TWD") == Amount(Decimal("4000.00"), "TWD"), \
+    assert balance.get_currency_units("TWD") == Amount(Decimal("4000.00"), "TWD"), (
         f"Expected credit card balance of 4000 TWD (owed), got {balance}"
+    )
 
 
 def test_import_hsbc_credit_card_foreign_currency_refund(importer, temp_json_file):
