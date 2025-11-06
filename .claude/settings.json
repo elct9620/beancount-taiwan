@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(uv run ruff:*)",
+      "Bash(uv run pytest:*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
