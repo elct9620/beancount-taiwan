@@ -10,7 +10,6 @@ from beancount.core.amount import Amount
 from beancount.parser import printer
 from beancount.loader import load_string
 from decimal import Decimal
-import subprocess
 
 from beantw.config import HSBCCreditCardConfig, Rule
 from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
