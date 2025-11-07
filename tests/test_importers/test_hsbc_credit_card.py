@@ -11,7 +11,7 @@ from beancount.parser import printer
 from beancount.loader import load_string
 from decimal import Decimal
 
-from beantw.config import HSBCCreditCardConfig, Rule
+from beantw.config import HSBCCreditCardConfig, Category
 from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
 
 
@@ -19,9 +19,8 @@ from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
 def importer():
     """Create an HSBC credit card importer with default configuration."""
     return HSBCCreditCardImporter(
-        credit_card_account="Liabilities:CreditCard:HSBC:Travelers",
-        expense_account="Expenses:Life",
-        payment_asset_account="Assets:Bank:Checking",
+        source_account="Liabilities:CreditCard:HSBC:Travelers",
+        target_account="Expenses:Life",
     )
 
 
@@ -145,8 +144,19 @@ def test_import_hsbc_credit_card_foreign_currency_expense(importer, temp_json_fi
     assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
 
 
-def test_import_hsbc_credit_card_payment(importer, temp_json_file):
+def test_import_hsbc_credit_card_payment(temp_json_file):
     """Test importing a payment transaction."""
+    # Given a config with a category for payment transactions
+    config = HSBCCreditCardConfig()
+    config.categories.append(
+        Category(pattern="^PAYMENT RECEIVED$", account="Assets:Bank:Checking")
+    )
+
+    importer = HSBCCreditCardImporter(
+        source_account="Liabilities:CreditCard:HSBC:Travelers",
+        config=config,
+    )
+
     # Given a valid HSBC credit card statement payload with payment
     statement = {
         "payload": [
@@ -183,12 +193,12 @@ def test_import_hsbc_credit_card_payment(importer, temp_json_file):
     # Check postings for payment
     assert len(entry.postings) == 2
 
-    # First posting: Assets decrease (money leaves bank)
+    # First posting: Asset account with negative amount
     asset_posting = entry.postings[0]
-    assert asset_posting.account == "Assets:Bank:Checking"
+    assert asset_posting.account == "Assets:Bank:Checking"  # From category match
     assert asset_posting.units == Amount(Decimal("-5000.00"), "TWD")
 
-    # Second posting: Liability account gets positive credit (balancing)
+    # Second posting: Credit card (balancing, positive to reduce liability)
     cc_posting = entry.postings[1]
     assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
     assert cc_posting.units is None  # Balancing posting
@@ -335,18 +345,18 @@ def test_multiple_transactions(importer, temp_json_file):
     assert entries[1].narration == "TRANSACTION 2"
 
 
-def test_import_with_config_rule_matching(temp_json_file):
-    """Test that importer applies configuration rules correctly."""
-    # Given a config with a rule for foreign transaction fees
+def test_import_with_config_category_matching(temp_json_file):
+    """Test that importer applies configuration categories correctly."""
+    # Given a config with a category for foreign transaction fees
     config = HSBCCreditCardConfig()
-    config.rules.append(
-        Rule(description_contains="國外交易手續費", expense_account="Expenses:BankFees")
+    config.categories.append(
+        Category(pattern="^國外交易手續費$", account="Expenses:BankFees")
     )
 
     # And an importer using this config
     importer = HSBCCreditCardImporter(config=config)
 
-    # And a transaction matching the rule
+    # And a transaction matching the category
     statement = {
         "payload": [
             {
@@ -372,20 +382,31 @@ def test_import_with_config_rule_matching(temp_json_file):
     # When extracting entries
     entries = importer.extract(temp_json_file.name)
 
-    # Then the rule should apply the BankFees account
+    # Then the category should apply the BankFees account
     assert len(entries) == 1
     entry = entries[0]
     expense_posting = entry.postings[0]
     assert expense_posting.account == "Expenses:BankFees"
 
 
-def test_import_hsbc_credit_card_payment_reduces_liability(importer, temp_json_file):
+def test_import_hsbc_credit_card_payment_reduces_liability(temp_json_file):
     """Test that negative ntdAmount correctly reduces credit card liability.
 
     This test explicitly verifies that when ntdAmount = -1000 (payment),
     the credit card balance is REDUCED by 1000 (liability decreases),
     not increased.
     """
+    # Given a config with a category for payment transactions
+    config = HSBCCreditCardConfig()
+    config.categories.append(
+        Category(pattern="^PAYMENT", account="Assets:Bank:Checking")
+    )
+
+    importer = HSBCCreditCardImporter(
+        source_account="Liabilities:CreditCard:HSBC:Travelers",
+        config=config,
+    )
+
     # Given a payment transaction with ntdAmount = -1000
     statement = {
         "payload": [
@@ -416,12 +437,12 @@ def test_import_hsbc_credit_card_payment_reduces_liability(importer, temp_json_f
     assert len(entries) == 1
     entry = entries[0]
 
-    # First posting: Asset account (money leaves bank)
-    asset_posting = entry.postings[0]
-    assert asset_posting.account == "Assets:Bank:Checking"
-    assert asset_posting.units == Amount(Decimal("-1000.00"), "TWD")
+    # First posting: Bank account with negative amount
+    bank_posting = entry.postings[0]
+    assert bank_posting.account == "Assets:Bank:Checking"  # From category match
+    assert bank_posting.units == Amount(Decimal("-1000.00"), "TWD")
 
-    # Second posting: Credit card liability (balancing, positive credit)
+    # Second posting: Credit card liability (balancing, positive to reduce liability)
     cc_posting = entry.postings[1]
     assert cc_posting.account == "Liabilities:CreditCard:HSBC:Travelers"
     assert cc_posting.units is None  # Balancing posting

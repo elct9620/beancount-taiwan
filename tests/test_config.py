@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from beantw.config import HSBCCreditCardConfig, Rule
+from beantw.config import HSBCCreditCardConfig, Category
 
 
 @pytest.fixture
@@ -23,11 +23,8 @@ def test_load_default_accounts_from_config(temp_yaml_file):
     # Given a config file with default accounts
     config_data = {
         "default": {
-            "account": {
-                "credit_card": "Liabilities:CreditCard:HSBC:Custom",
-                "expense": "Expenses:Custom",
-                "payment_asset": "Assets:Custom",
-            }
+            "source": "Liabilities:CreditCard:HSBC:Custom",
+            "target": "Expenses:Custom",
         }
     }
 
@@ -38,25 +35,22 @@ def test_load_default_accounts_from_config(temp_yaml_file):
     config = HSBCCreditCardConfig(temp_yaml_file.name)
 
     # Then the default accounts should be loaded
-    assert config.default_accounts.credit_card == "Liabilities:CreditCard:HSBC:Custom"
-    assert config.default_accounts.expense == "Expenses:Custom"
-    assert config.default_accounts.payment_asset == "Assets:Custom"
+    assert config.source_account == "Liabilities:CreditCard:HSBC:Custom"
+    assert config.target_account == "Expenses:Custom"
 
 
-def test_load_global_rules_from_config(temp_yaml_file):
-    """Test loading global rules from configuration."""
-    # Given a config file with global rules
+def test_load_categories_from_config(temp_yaml_file):
+    """Test loading categories from configuration."""
+    # Given a config file with categories
     config_data = {
-        "rules": [
+        "categories": [
             {
-                "name": "foreign_currency_expense",
-                "description_contains": "國外交易手續費",
-                "expense_account": "Expenses:BankFees",
+                "pattern": "^PAYMENT RECEIVED$",
+                "account": "Assets:Bank:Checking",
             },
             {
-                "type": "payment",
-                "description_contains": "全國繳費網",
-                "payment_asset_account": "Assets:Bank:PostOffice",
+                "pattern": "^國外交易手續費$",
+                "account": "Expenses:BankFees",
             },
         ]
     }
@@ -67,203 +61,107 @@ def test_load_global_rules_from_config(temp_yaml_file):
     # When loading the configuration
     config = HSBCCreditCardConfig(temp_yaml_file.name)
 
-    # Then the rules should be loaded
-    assert len(config.rules) == 2
-    assert config.rules[0].name == "foreign_currency_expense"
-    assert config.rules[0].description_contains == "國外交易手續費"
-    assert config.rules[0].expense_account == "Expenses:BankFees"
-    assert config.rules[1].type == "payment"
-    assert config.rules[1].payment_asset_account == "Assets:Bank:PostOffice"
+    # Then the categories should be loaded
+    assert len(config.categories) == 2
+    assert config.categories[0].pattern == "^PAYMENT RECEIVED$"
+    assert config.categories[0].account == "Assets:Bank:Checking"
+    assert config.categories[1].pattern == "^國外交易手續費$"
+    assert config.categories[1].account == "Expenses:BankFees"
 
 
-def test_load_card_specific_config(temp_yaml_file):
-    """Test loading card-specific configuration."""
-    # Given a config file with card-specific settings
+def test_get_account_for_transaction_with_category_match(temp_yaml_file):
+    """Test getting account for a transaction using category matching."""
+    # Given a config with categories
     config_data = {
-        "cards": [
+        "default": {
+            "source": "Liabilities:CreditCard:HSBC:Travelers",
+            "target": "Expenses:Others",
+        },
+        "categories": [
             {
-                "name": "Travelers",
-                "card_no_suffix": "1234",
-                "accounts": {
-                    "credit_card": "Liabilities:CreditCard:HSBC:Travelers",
-                    "expense": "Expenses:Travel",
-                    "payment_asset": "Assets:Bank:TravelersChecking",
-                },
-                "rules": [
-                    {
-                        "name": "foreign_currency_expense",
-                        "description_contains": "FOREIGN TRANSACTION FEE",
-                        "expense_account": "Expenses:BankFees",
-                    }
-                ],
-            }
-        ]
+                "pattern": "^PAYMENT RECEIVED$",
+                "account": "Assets:Bank:Checking",
+            },
+            {
+                "pattern": "^國外交易手續費$",
+                "account": "Expenses:BankFees",
+            },
+        ],
     }
 
     yaml.dump(config_data, temp_yaml_file)
     temp_yaml_file.flush()
 
-    # When loading the configuration
     config = HSBCCreditCardConfig(temp_yaml_file.name)
 
-    # Then card-specific configuration should be loaded
-    assert len(config.cards) == 1
-    card = config.cards[0]
-    assert card.name == "Travelers"
-    assert card.card_no_suffix == "1234"
-    assert card.accounts.credit_card == "Liabilities:CreditCard:HSBC:Travelers"
-    assert card.accounts.expense == "Expenses:Travel"
-    assert len(card.rules) == 1
-    assert card.rules[0].expense_account == "Expenses:BankFees"
+    # When getting account for a transaction matching a category
+    transaction = {"description": "PAYMENT RECEIVED"}
+    account = config.get_account_for_transaction(transaction)
+
+    # Then the category-matched account should be returned
+    assert account == "Assets:Bank:Checking"
 
 
-def test_rule_matches_description():
-    """Test that a rule correctly matches transaction descriptions."""
-    # Given a rule that matches a specific description
-    rule = Rule(description_contains="國外交易手續費")
+def test_get_account_for_transaction_without_match(temp_yaml_file):
+    """Test getting account for a transaction that doesn't match any category."""
+    # Given a config with categories
+    config_data = {
+        "default": {
+            "source": "Liabilities:CreditCard:HSBC:Travelers",
+            "target": "Expenses:Others",
+        },
+        "categories": [
+            {
+                "pattern": "^PAYMENT RECEIVED$",
+                "account": "Assets:Bank:Checking",
+            },
+        ],
+    }
+
+    yaml.dump(config_data, temp_yaml_file)
+    temp_yaml_file.flush()
+
+    config = HSBCCreditCardConfig(temp_yaml_file.name)
+
+    # When getting account for a transaction that doesn't match
+    transaction = {"description": "REGULAR EXPENSE"}
+    account = config.get_account_for_transaction(transaction)
+
+    # Then the default target account should be returned
+    assert account == "Expenses:Others"
+
+
+def test_category_pattern_matching():
+    """Test that category patterns match correctly using regex."""
+    # Given a config with a regex pattern
+    config = HSBCCreditCardConfig()
+    config.categories.append(
+        Category(pattern="^國外交易手續費", account="Expenses:BankFees")
+    )
 
     # When checking a matching transaction
     transaction = {"description": "國外交易手續費 2025/07/30"}
+    account = config.get_account_for_transaction(transaction)
 
-    # Then the rule should match
-    assert rule.matches(transaction) is True
-
-
-def test_rule_does_not_match_different_description():
-    """Test that a rule doesn't match non-matching descriptions."""
-    # Given a rule that matches a specific description
-    rule = Rule(description_contains="國外交易手續費")
-
-    # When checking a non-matching transaction
-    transaction = {"description": "REGULAR TRANSACTION"}
-
-    # Then the rule should not match
-    assert rule.matches(transaction) is False
+    # Then it should match
+    assert account == "Expenses:BankFees"
 
 
-def test_rule_matches_payment_type():
-    """Test that a rule correctly matches payment transactions."""
-    # Given a rule that matches payment type
-    rule = Rule(type="payment")
-
-    # When checking a payment transaction (negative amount)
-    transaction = {"ntdAmount": "-5000", "description": "PAYMENT"}
-
-    # Then the rule should match
-    assert rule.matches(transaction) is True
-
-
-def test_rule_does_not_match_non_payment():
-    """Test that a payment rule doesn't match expense transactions."""
-    # Given a rule that matches payment type
-    rule = Rule(type="payment")
-
-    # When checking an expense transaction (positive amount)
-    transaction = {"ntdAmount": "699", "description": "EXPENSE"}
-
-    # Then the rule should not match
-    assert rule.matches(transaction) is False
-
-
-def test_rule_applies_expense_account_override():
-    """Test that a rule applies expense account override."""
-    # Given a rule that overrides the expense account
-    rule = Rule(expense_account="Expenses:BankFees")
-
-    # When applying the rule
-    expense, payment = rule.apply_to_accounts("Expenses:Life", "Assets:Bank:Checking")
-
-    # Then the expense account should be overridden
-    assert expense == "Expenses:BankFees"
-    assert payment == "Assets:Bank:Checking"
-
-
-def test_rule_applies_payment_asset_account_override():
-    """Test that a rule applies payment asset account override."""
-    # Given a rule that overrides the payment asset account
-    rule = Rule(payment_asset_account="Assets:Bank:PostOffice")
-
-    # When applying the rule
-    expense, payment = rule.apply_to_accounts("Expenses:Life", "Assets:Bank:Checking")
-
-    # Then the payment asset account should be overridden
-    assert expense == "Expenses:Life"
-    assert payment == "Assets:Bank:PostOffice"
-
-
-def test_get_accounts_for_transaction_with_global_rule():
-    """Test getting accounts for a transaction using global rules."""
-    # Given a config with a global rule
+def test_category_first_match_wins():
+    """Test that the first matching category is used."""
+    # Given a config with overlapping patterns
     config = HSBCCreditCardConfig()
-    config.rules.append(
-        Rule(description_contains="國外交易手續費", expense_account="Expenses:BankFees")
+    config.categories.append(Category(pattern="^PAYMENT", account="Assets:Bank:First"))
+    config.categories.append(
+        Category(pattern="^PAYMENT RECEIVED$", account="Assets:Bank:Second")
     )
 
-    # When getting accounts for a matching transaction
-    transaction = {"description": "國外交易手續費", "cardNo": "9999"}
-    credit_card, expense, payment = config.get_accounts_for_transaction(transaction)
+    # When getting account for a transaction
+    transaction = {"description": "PAYMENT RECEIVED"}
+    account = config.get_account_for_transaction(transaction)
 
-    # Then the rule should be applied
-    assert expense == "Expenses:BankFees"
-
-
-def test_get_accounts_for_transaction_with_card_specific_config():
-    """Test getting accounts for a transaction using card-specific config."""
-    # Given a config with card-specific settings
-    config = HSBCCreditCardConfig()
-    from beantw.config import AccountConfig, CardConfig
-
-    card = CardConfig(
-        name="Travelers",
-        card_no_suffix="1234",
-        accounts=AccountConfig(
-            credit_card="Liabilities:CreditCard:HSBC:Travelers",
-            expense="Expenses:Travel",
-            payment_asset="Assets:Bank:TravelersChecking",
-        ),
-        rules=[],
-    )
-    config.cards.append(card)
-
-    # When getting accounts for a transaction with matching card number
-    transaction = {"description": "EXPENSE", "cardNo": "****1234"}
-    credit_card, expense, payment = config.get_accounts_for_transaction(transaction)
-
-    # Then card-specific accounts should be used
-    assert credit_card == "Liabilities:CreditCard:HSBC:Travelers"
-    assert expense == "Expenses:Travel"
-    assert payment == "Assets:Bank:TravelersChecking"
-
-
-def test_get_accounts_for_transaction_with_card_specific_rule():
-    """Test that card-specific rules override card defaults."""
-    # Given a config with card-specific rule
-    config = HSBCCreditCardConfig()
-    from beantw.config import AccountConfig, CardConfig
-
-    card = CardConfig(
-        name="Travelers",
-        card_no_suffix="1234",
-        accounts=AccountConfig(
-            credit_card="Liabilities:CreditCard:HSBC:Travelers",
-            expense="Expenses:Travel",
-            payment_asset="Assets:Bank:TravelersChecking",
-        ),
-        rules=[
-            Rule(
-                description_contains="FOREIGN TRANSACTION FEE",
-                expense_account="Expenses:BankFees",
-            )
-        ],
-    )
-    config.cards.append(card)
-
-    # When getting accounts for a transaction with matching card and rule
-    transaction = {"description": "FOREIGN TRANSACTION FEE", "cardNo": "****1234"}
-    credit_card, expense, payment = config.get_accounts_for_transaction(transaction)
-
-    # Then the card-specific rule should override the card default
-    assert expense == "Expenses:BankFees"
+    # Then the first matching category should be used
+    assert account == "Assets:Bank:First"
 
 
 def test_config_file_not_found_raises_error():
@@ -279,10 +177,6 @@ def test_default_config_without_file():
     config = HSBCCreditCardConfig()
 
     # Then default accounts should be used
-    assert (
-        config.default_accounts.credit_card == "Liabilities:CreditCard:HSBC:Travelers"
-    )
-    assert config.default_accounts.expense == "Expenses:Life"
-    assert config.default_accounts.payment_asset == "Assets:Bank:Checking"
-    assert len(config.rules) == 0
-    assert len(config.cards) == 0
+    assert config.source_account == "Liabilities:CreditCard:HSBC:Travelers"
+    assert config.target_account == "Expenses:Others"
+    assert len(config.categories) == 0

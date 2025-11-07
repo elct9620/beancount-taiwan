@@ -17,42 +17,28 @@ class HSBCCreditCardImporter(Importer):
 
     def __init__(
         self,
-        credit_card_account: str | None = None,
-        expense_account: str | None = None,
-        payment_asset_account: str | None = None,
+        source_account: str | None = None,
+        target_account: str | None = None,
         config: HSBCCreditCardConfig | None = None,
     ):
         """Initialize the HSBC credit card importer.
 
         Args:
-            credit_card_account: The Beancount account for the credit card liability
-            expense_account: The default expense account for transactions
-            payment_asset_account: The asset account for payment transactions
-            config: Optional configuration object for advanced features like rules and card-specific configs
+            source_account: The credit card liability account (overrides config)
+            target_account: The default expense account (overrides config)
+            config: Optional configuration object for category matching
         """
         self.config = config
-
-        # Store which accounts were explicitly provided (for CLI overrides)
-        self._explicit_credit_card = credit_card_account
-        self._explicit_expense = expense_account
-        self._explicit_payment_asset = payment_asset_account
+        self._explicit_target = target_account  # Track if target was explicitly set
 
         if config:
-            # Use config defaults if individual params not provided
-            self.credit_card_account = (
-                credit_card_account or config.default_accounts.credit_card
-            )
-            self.expense_account = expense_account or config.default_accounts.expense
-            self.payment_asset_account = (
-                payment_asset_account or config.default_accounts.payment_asset
-            )
+            self.source_account = source_account or config.source_account
+            self.target_account = target_account or config.target_account
         else:
-            # Use provided accounts or fall back to hardcoded defaults
-            self.credit_card_account = (
-                credit_card_account or "Liabilities:CreditCard:HSBC:Travelers"
+            self.source_account = (
+                source_account or "Liabilities:CreditCard:HSBC:Travelers"
             )
-            self.expense_account = expense_account or "Expenses:Life"
-            self.payment_asset_account = payment_asset_account or "Assets:Bank:Checking"
+            self.target_account = target_account or "Expenses:Others"
 
     def account(self, filepath: str) -> str:
         """Return the primary account for this importer.
@@ -63,7 +49,7 @@ class HSBCCreditCardImporter(Importer):
         Returns:
             The credit card account name
         """
-        return self.credit_card_account
+        return self.source_account
 
     def identify(self, filepath: str) -> bool:
         """Identify if the file is an HSBC credit card statement JSON.
@@ -176,22 +162,14 @@ class HSBCCreditCardImporter(Importer):
             foreign_amount = txn.get("amount", "0")
             foreign_currency = txn.get("amtCy", "").strip()
 
-            # Determine accounts based on configuration
-            if self.config:
-                credit_card_account, expense_account, payment_asset_account = (
-                    self.config.get_accounts_for_transaction(txn)
-                )
-                # Apply CLI overrides if they were explicitly provided
-                if self._explicit_credit_card:
-                    credit_card_account = self._explicit_credit_card
-                if self._explicit_expense:
-                    expense_account = self._explicit_expense
-                if self._explicit_payment_asset:
-                    payment_asset_account = self._explicit_payment_asset
+            # Determine the other account using category matching
+            # If target was explicitly set via CLI, use it; otherwise use config matching
+            if self._explicit_target:
+                other_account = self.target_account
+            elif self.config:
+                other_account = self.config.get_account_for_transaction(txn)
             else:
-                credit_card_account = self.credit_card_account
-                expense_account = self.expense_account
-                payment_asset_account = self.payment_asset_account
+                other_account = self.target_account
 
             # Create postings based on transaction type
             postings = []
@@ -204,7 +182,7 @@ class HSBCCreditCardImporter(Importer):
                 per_unit_price = ntd_amount / foreign_amt
                 postings.append(
                     data.Posting(
-                        account=expense_account,
+                        account=other_account,
                         units=Amount(foreign_amt, foreign_currency),
                         cost=None,
                         price=Amount(per_unit_price, "TWD"),  # Per-unit price in TWD
@@ -214,7 +192,7 @@ class HSBCCreditCardImporter(Importer):
                 )
                 postings.append(
                     data.Posting(
-                        account=credit_card_account,
+                        account=self.source_account,
                         units=None,  # Balancing posting
                         cost=None,
                         price=None,
@@ -226,10 +204,10 @@ class HSBCCreditCardImporter(Importer):
             elif ntd_amount < 0:
                 postings.append(
                     data.Posting(
-                        account=payment_asset_account,
+                        account=other_account,
                         units=Amount(
                             ntd_amount, "TWD"
-                        ),  # Negative amount - money leaves bank
+                        ),  # Negative amount - money leaves account
                         cost=None,
                         price=None,
                         flag=None,
@@ -238,8 +216,8 @@ class HSBCCreditCardImporter(Importer):
                 )
                 postings.append(
                     data.Posting(
-                        account=credit_card_account,
-                        units=None,  # Balancing posting - positive to credit the liability
+                        account=self.source_account,
+                        units=None,  # Balancing posting
                         cost=None,
                         price=None,
                         flag=None,
@@ -250,7 +228,7 @@ class HSBCCreditCardImporter(Importer):
             else:
                 postings.append(
                     data.Posting(
-                        account=expense_account,
+                        account=other_account,
                         units=Amount(ntd_amount, "TWD"),
                         cost=None,
                         price=None,
@@ -260,7 +238,7 @@ class HSBCCreditCardImporter(Importer):
                 )
                 postings.append(
                     data.Posting(
-                        account=credit_card_account,
+                        account=self.source_account,
                         units=None,  # Balancing posting
                         cost=None,
                         price=None,

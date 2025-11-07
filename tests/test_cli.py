@@ -56,20 +56,17 @@ def test_convert_without_config(temp_dir, sample_statement):
     # Should succeed and use default accounts
     assert result.exit_code == 0
     assert "TEST TRANSACTION" in result.stdout
-    assert "Expenses:Life" in result.stdout
+    assert "Expenses:Others" in result.stdout  # New default
     assert "Liabilities:CreditCard:HSBC:Travelers" in result.stdout
 
 
 def test_convert_with_explicit_config(temp_dir, sample_statement):
     """Test convert command with explicitly specified config file."""
-    # Create config file
+    # Create config file with new simplified format
     config_data = {
         "default": {
-            "account": {
-                "credit_card": "Liabilities:CustomCard",
-                "expense": "Expenses:Custom",
-                "payment_asset": "Assets:Custom",
-            }
+            "source": "Liabilities:CustomCard",
+            "target": "Expenses:Custom",
         }
     }
     config_file = temp_dir / "custom_config.yaml"
@@ -105,11 +102,8 @@ def test_convert_with_default_config_in_config_dir(temp_dir, sample_statement):
         config_dir.mkdir()
         config_data = {
             "default": {
-                "account": {
-                    "credit_card": "Liabilities:AutoDetected",
-                    "expense": "Expenses:AutoDetected",
-                    "payment_asset": "Assets:AutoDetected",
-                }
+                "source": "Liabilities:AutoDetected",
+                "target": "Expenses:AutoDetected",
             }
         }
         config_file = config_dir / "hsbc_credit_card_importer.yaml"
@@ -147,11 +141,8 @@ def test_explicit_config_overrides_default(temp_dir, sample_statement):
         config_dir.mkdir()
         default_config_data = {
             "default": {
-                "account": {
-                    "credit_card": "Liabilities:Default",
-                    "expense": "Expenses:Default",
-                    "payment_asset": "Assets:Default",
-                }
+                "source": "Liabilities:Default",
+                "target": "Expenses:Default",
             }
         }
         default_config_file = config_dir / "hsbc_credit_card_importer.yaml"
@@ -161,11 +152,8 @@ def test_explicit_config_overrides_default(temp_dir, sample_statement):
         # Create explicit config
         explicit_config_data = {
             "default": {
-                "account": {
-                    "credit_card": "Liabilities:Explicit",
-                    "expense": "Expenses:Explicit",
-                    "payment_asset": "Assets:Explicit",
-                }
+                "source": "Liabilities:Explicit",
+                "target": "Expenses:Explicit",
             }
         }
         explicit_config_file = temp_dir / "explicit.yaml"
@@ -196,11 +184,8 @@ def test_cli_options_override_config(temp_dir, sample_statement):
     # Create config file
     config_data = {
         "default": {
-            "account": {
-                "credit_card": "Liabilities:FromConfig",
-                "expense": "Expenses:FromConfig",
-                "payment_asset": "Assets:FromConfig",
-            }
+            "source": "Liabilities:FromConfig",
+            "target": "Expenses:FromConfig",
         }
     }
     config_file = temp_dir / "config.yaml"
@@ -212,19 +197,19 @@ def test_cli_options_override_config(temp_dir, sample_statement):
     with open(statement_file, "w") as f:
         json.dump(sample_statement, f)
 
-    # Run with config but override expense account
+    # Run with config but override target account
     result = runner.invoke(
         app,
         [
             "--config",
             str(config_file),
-            "--expense-account",
+            "--target-account",
             "Expenses:OverriddenCLI",
             str(statement_file),
         ],
     )
 
-    # Should use CLI option for expense, config for others
+    # Should use CLI option for target, config for source
     assert result.exit_code == 0
     assert "Expenses:OverriddenCLI" in result.stdout
     assert "Expenses:FromConfig" not in result.stdout
