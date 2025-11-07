@@ -22,32 +22,17 @@ Each importer has its own config to provide default account mapping or special h
 ```yaml
 # config/hsbc_credit_card_importer.yaml
 default:
-    account:
-        credit_card: Liabilities:CreditCard:HSBC:Travelers
-        expense: Expenses:Life
-        payment_asset: Assets:Bank:Checking
+  source: Liabilities:CreditCard:HSBC:Travelers
+  target: Expenses:Others
 
-rules:
-    - name: foreign_currency_expense
-      description_contains: "國外交易手續費"
-      expense_account: Expenses:BankFees
-    - type: payment
-      description_contains: "全國繳費網"
-      payment_asset_account: Assets:Bank:PostOffice
-
-cards:
-    - name: "Travelers"
-      card_no_suffix: "1234"
-      accounts:
-          credit_card: Liabilities:CreditCard:HSBC:Travelers
-          expense: Expenses:Travel
-          payment_asset: Assets:Bank:TravelersChecking
-    rules:
-        - name: foreign_currency_expense
-          description_contains: "FOREIGN TRANSACTION FEE"
-          expense_account: Expenses:BankFees
-
+categories:
+  - pattern: "^PAYMENT RECEIVED$"
+    account: Assets:Bank:Checking
+  - pattern: "^國外交易手續費$"
+    account: Expenses:BankFees
 ```
+
+The default config the source and target accounts for normal transactions. Some special transactions (e.g., payment received, foreign transaction fee) are mapped to different accounts based on the `categories` rules.
 
 ## Scenarios
 
