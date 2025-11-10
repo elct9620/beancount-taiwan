@@ -7,6 +7,7 @@ import typer
 from beantw.config import HSBCCreditCardConfig
 from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
 from beantw.usecases.convert import ConvertUseCase
+from beantw.usecases.refresh import RefreshUseCase
 
 app = typer.Typer(help="Beancount data importer for Taiwanese banks and credit cards")
 
@@ -80,6 +81,41 @@ def convert(
 
         # Output result
         typer.echo(result)
+
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.echo(f"Unexpected error: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def refresh(
+    directory: Path = typer.Argument(
+        "books",
+        help="Directory to scan for Beancount files (default: books/)",
+        file_okay=False,
+        dir_okay=True,
+    ),
+):
+    """Recursively refresh Beancount index files in a directory.
+
+    Scans the specified directory (default: books/) for Beancount files and
+    automatically creates or updates index files (index.bean, books.bean, etc.)
+    in each directory. Index files will contain include statements for all
+    Beancount files in the same directory.
+
+    The command processes directories recursively, so nested directory structures
+    are fully supported. Existing index files will be updated to include new files
+    while preserving any existing include statements.
+    """
+    try:
+        # Create and execute use case
+        use_case = RefreshUseCase()
+        use_case.execute(str(directory))
+
+        typer.echo(f"Successfully refreshed index files in {directory}")
 
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)

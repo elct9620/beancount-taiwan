@@ -51,7 +51,7 @@ def test_convert_without_config(temp_dir, sample_statement):
         json.dump(sample_statement, f)
 
     # Run convert command without config
-    result = runner.invoke(app, [str(statement_file)])
+    result = runner.invoke(app, ["convert", str(statement_file)])
 
     # Should succeed and use default accounts
     assert result.exit_code == 0
@@ -79,7 +79,9 @@ def test_convert_with_explicit_config(temp_dir, sample_statement):
         json.dump(sample_statement, f)
 
     # Run convert command with explicit config
-    result = runner.invoke(app, ["--config", str(config_file), str(statement_file)])
+    result = runner.invoke(
+        app, ["convert", "--config", str(config_file), str(statement_file)]
+    )
 
     # Should use config file accounts
     assert result.exit_code == 0
@@ -116,7 +118,7 @@ def test_convert_with_default_config_in_config_dir(temp_dir, sample_statement):
             json.dump(sample_statement, f)
 
         # Run convert command without specifying config (should auto-detect)
-        result = runner.invoke(app, [str(statement_file)])
+        result = runner.invoke(app, ["convert", str(statement_file)])
 
         # Should automatically use the config file
         assert result.exit_code == 0
@@ -167,7 +169,7 @@ def test_explicit_config_overrides_default(temp_dir, sample_statement):
 
         # Run with explicit config
         result = runner.invoke(
-            app, ["--config", str(explicit_config_file), str(statement_file)]
+            app, ["convert", "--config", str(explicit_config_file), str(statement_file)]
         )
 
         # Should use explicit config, not default
@@ -201,6 +203,7 @@ def test_cli_options_override_config(temp_dir, sample_statement):
     result = runner.invoke(
         app,
         [
+            "convert",
             "--config",
             str(config_file),
             "--target-account",
@@ -214,3 +217,68 @@ def test_cli_options_override_config(temp_dir, sample_statement):
     assert "Expenses:OverriddenCLI" in result.stdout
     assert "Expenses:FromConfig" not in result.stdout
     assert "Liabilities:FromConfig" in result.stdout
+
+
+def test_refresh_command(temp_dir):
+    """Test refresh command creates index files."""
+    # Create directory structure with beancount files
+    books_dir = temp_dir / "books"
+    (books_dir / "2023").mkdir(parents=True)
+    (books_dir / "2024").mkdir(parents=True)
+
+    # Create beancount files
+    (books_dir / "2023" / "jan.bean").write_text(
+        '2023-01-01 * "Test"\n  Assets:Cash 100 TWD\n'
+    )
+    (books_dir / "2023" / "feb.bean").write_text(
+        '2023-02-01 * "Test"\n  Assets:Cash 200 TWD\n'
+    )
+    (books_dir / "2024" / "mar.bean").write_text(
+        '2024-03-01 * "Test"\n  Assets:Cash 300 TWD\n'
+    )
+
+    # Run refresh command
+    result = runner.invoke(app, ["refresh", str(books_dir)])
+
+    # Should succeed
+    assert result.exit_code == 0
+    assert "Successfully refreshed" in result.stdout
+
+    # Verify index files were created
+    assert (books_dir / "2023" / "index.bean").exists()
+    assert (books_dir / "2024" / "index.bean").exists()
+    assert (books_dir / "index.bean").exists()
+
+    # Verify content
+    content_2023 = (books_dir / "2023" / "index.bean").read_text()
+    assert 'include "feb.bean"' in content_2023
+    assert 'include "jan.bean"' in content_2023
+
+
+def test_refresh_command_with_default_directory(temp_dir):
+    """Test refresh command with default directory argument."""
+    import os
+
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(temp_dir)
+
+        # Create default books directory
+        books_dir = temp_dir / "books"
+        books_dir.mkdir()
+        (books_dir / "test.bean").write_text(
+            '2023-01-01 * "Test"\n  Assets:Cash 100 TWD\n'
+        )
+
+        # Run refresh without directory argument (should use default "books")
+        result = runner.invoke(app, ["refresh"])
+
+        # Should succeed
+        assert result.exit_code == 0
+        assert "Successfully refreshed" in result.stdout
+
+        # Verify index file was created
+        assert (books_dir / "index.bean").exists()
+
+    finally:
+        os.chdir(original_cwd)
