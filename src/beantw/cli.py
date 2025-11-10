@@ -6,7 +6,7 @@ import typer
 
 from beantw.config import HSBCCreditCardConfig
 from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
-from beantw.usecases.convert_hsbc_credit_card import ConvertHSBCCreditCardUseCase
+from beantw.usecases.convert import ConvertUseCase
 
 app = typer.Typer(help="Beancount data importer for Taiwanese banks and credit cards")
 
@@ -75,7 +75,7 @@ def convert(
         )
 
         # Create and execute use case
-        use_case = ConvertHSBCCreditCardUseCase(importer)
+        use_case = ConvertUseCase(importer)
         result = use_case.execute(str(filepath))
 
         # Output result
