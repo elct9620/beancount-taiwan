@@ -23,8 +23,8 @@ The Beancount Taiwan is a Python-based command-line application that processes f
             |- esunsec.py # Module for importing E.SUN Broker export data
         |- usecases/
             |- __init__.py
-            |- convert_hsbc_credit_card.py # Use case for converting HSBC credit card data to Beancount format
-            |- convert_esunsec.py # Use case for converting E.SUN Broker data to Beancount format
+            |- convert.py # Use case for converting any supported data to Beancount format, injecting specific importers
+            |- refresh.py # Use case for refreshing index.bean file
         |- cli.py # Entry point for the command-line interface
 |- tests/
     |- test_importers/
