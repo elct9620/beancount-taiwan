@@ -4,9 +4,10 @@ This module provides functionality to recursively scan directories for Beancount
 and automatically create/update index files that include all related files.
 """
 
-import re
 from pathlib import Path
 from typing import Set
+
+from beantw.services.index_service import IndexService, IndexServiceProtocol
 
 
 class RefreshUseCase:
@@ -17,15 +18,13 @@ class RefreshUseCase:
     directives for all Beancount files in the same directory.
     """
 
-    # Valid index file names (in order of preference for creation)
-    INDEX_FILENAMES = ["index.bean", "books.bean", "index.beancount", "books.beancount"]
+    def __init__(self, index_service: IndexServiceProtocol | None = None):
+        """Initialize the RefreshUseCase.
 
-    # Valid Beancount file extensions
-    BEANCOUNT_EXTENSIONS = {".bean", ".beancount"}
-
-    def __init__(self):
-        """Initialize the RefreshUseCase."""
-        pass
+        Args:
+            index_service: Service for managing index files. If None, uses default IndexService.
+        """
+        self.index_service = index_service or IndexService()
 
     def execute(self, directory: str) -> None:
         """Execute the refresh operation on the specified directory.
@@ -71,13 +70,15 @@ class RefreshUseCase:
             dir_path: Path to the directory to process
         """
         # Find all beancount files in this directory (non-recursive)
-        beancount_files = self._find_beancount_files(dir_path)
+        beancount_files = self.index_service.find_beancount_files(
+            dir_path, exclude_index=True
+        )
 
         # Find subdirectory index files
-        subdirectory_indexes = self._find_subdirectory_indexes(dir_path)
+        subdirectory_indexes = self.index_service.find_subdirectory_indexes(dir_path)
 
         # Find existing index file or determine which one to create
-        index_file = self._get_or_create_index_file(dir_path)
+        index_file = self.index_service.get_or_create_index_file(dir_path)
 
         # If no beancount files and no subdirectory indexes, skip this directory
         if not beancount_files and not subdirectory_indexes:
@@ -86,12 +87,12 @@ class RefreshUseCase:
         # Read existing includes if index file exists
         existing_includes = set()
         if index_file and index_file.exists():
-            existing_includes = self._read_existing_includes(index_file)
+            existing_includes = self.index_service.read_existing_includes(index_file)
 
         # Determine which index file to use/create
         if not index_file:
             # No existing index, create default one
-            index_file = dir_path / self.INDEX_FILENAMES[0]
+            index_file = dir_path / self.index_service.INDEX_FILENAMES[0]
 
         # Build the new set of includes
         new_includes = set()
@@ -112,107 +113,7 @@ class RefreshUseCase:
 
         # Write the updated index file
         if all_includes:
-            self._write_index_file(index_file, sorted(all_includes))
-
-    def _find_beancount_files(self, dir_path: Path) -> list[Path]:
-        """Find all Beancount files in a directory (non-recursive).
-
-        Args:
-            dir_path: Path to the directory to search
-
-        Returns:
-            List of Beancount file paths, excluding index files
-        """
-        beancount_files = []
-
-        for item in dir_path.iterdir():
-            if not item.is_file():
-                continue
-
-            # Check if it's a beancount file
-            if item.suffix not in self.BEANCOUNT_EXTENSIONS:
-                continue
-
-            # Exclude index files
-            if item.name in self.INDEX_FILENAMES:
-                continue
-
-            beancount_files.append(item)
-
-        return beancount_files
-
-    def _find_subdirectory_indexes(self, dir_path: Path) -> list[Path]:
-        """Find all index files in immediate subdirectories.
-
-        Args:
-            dir_path: Path to the directory to search
-
-        Returns:
-            List of index file paths in subdirectories
-        """
-        subdirectory_indexes = []
-
-        for item in dir_path.iterdir():
-            if not item.is_dir():
-                continue
-
-            # Look for index files in this subdirectory
-            for index_name in self.INDEX_FILENAMES:
-                index_file = item / index_name
-                if index_file.exists():
-                    subdirectory_indexes.append(index_file)
-                    break  # Only add one index file per subdirectory
-
-        return subdirectory_indexes
-
-    def _get_or_create_index_file(self, dir_path: Path) -> Path | None:
-        """Find existing index file or determine which one to create.
-
-        Args:
-            dir_path: Path to the directory
-
-        Returns:
-            Path to the index file, or None if no existing index found
-        """
-        # Check for existing index files in order of preference
-        for index_name in self.INDEX_FILENAMES:
-            index_file = dir_path / index_name
-            if index_file.exists():
-                return index_file
-
-        # No existing index file found, will create default one later
-        return None
-
-    def _read_existing_includes(self, index_file: Path) -> Set[str]:
-        """Read existing include statements from an index file.
-
-        Args:
-            index_file: Path to the index file
-
-        Returns:
-            Set of include statements (normalized)
-        """
-        includes = set()
-
-        try:
-            content = index_file.read_text(encoding="utf-8")
-
-            # Match include statements with various quote styles
-            # Pattern matches: include "file.bean" or include 'file.bean'
-            pattern = r'^\s*include\s+["\']([^"\']+)["\']\s*$'
-
-            for line in content.splitlines():
-                match = re.match(pattern, line)
-                if match:
-                    filename = match.group(1)
-                    # Normalize to double quotes
-                    includes.add(f'include "{filename}"')
-
-        except Exception:
-            # If we can't read the file, just return empty set
-            pass
-
-        return includes
+            self.index_service.write_index_file(index_file, sorted(all_includes))
 
     def _merge_includes(
         self, existing_includes: Set[str], new_includes: Set[str], dir_path: Path
@@ -233,13 +134,3 @@ class RefreshUseCase:
         # Merge both sets - preserve all existing includes and add new ones
         merged = existing_includes.union(new_includes)
         return merged
-
-    def _write_index_file(self, index_file: Path, includes: list[str]) -> None:
-        """Write include statements to an index file.
-
-        Args:
-            index_file: Path to the index file
-            includes: List of include statements to write
-        """
-        content = "\n".join(includes) + "\n"
-        index_file.write_text(content, encoding="utf-8")
