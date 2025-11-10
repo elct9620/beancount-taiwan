@@ -17,6 +17,9 @@ The Beancount Taiwan is a Python-based command-line application that processes f
 |- src/
     |- beantw/
         |- __init__.py
+        |- services/
+            |- __init__.py
+            |- index_service.py # Service for managing the index.bean file
         |- importers/
             |- __init__.py
             |- hsbc_credit_card.py # Module for importing HSBC credit card data
@@ -51,6 +54,8 @@ The use cases encapsulate the core business logic of the application. Each use c
 
 > It should not depend on any external libraries or frameworks, ensuring that the business logic remains isolated and testable. Use dependency inversion principle to depend on abstractions rather than concrete implementations.
 
-### Importers (Frameworks & Drivers)
+### Services
 
-The low-level modules responsible for interacting with Beancount and handling specific data formats. It should implement interfaces defined by the use cases to ensure loose coupling.
+The `services/` is uncategorizable adapter that provides functionalities that do not fit into importers or use cases, such as managing the `index.bean` file.
+
+If the adapter can be grouped into a specific category (e.g., importer, exporter), consider creating a dedicated module for it.
