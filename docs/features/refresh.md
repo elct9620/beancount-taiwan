@@ -45,7 +45,7 @@ Scenario: Refresh Beancount index files with custom directory
     | Path                   | Content                                               |
     | my_books/2022/apr.bean | 2022-04-01 * "April Fools" Expenses:Entertainment 150 |
     | my_books/2022/may.bean | 2022-05-01 * "Labor Day" Assets:Cash 500              |
-  When I run `bean-tw refresh --dir my_books/`
+  When I run `bean-tw refresh my_books/`
   Then the following index files should be created or updated:
     | Path                     | Content                                  |
     | my_books/2022/index.bean | include "apr.bean" \n include "may.bean" |
