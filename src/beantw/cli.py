@@ -4,9 +4,10 @@ from pathlib import Path
 
 import typer
 
-from beantw.config import HSBCCreditCardConfig
+from beantw.config import HSBCCreditCardConfig, RecurringTransactionConfig
 from beantw.importers.hsbc_credit_card import HSBCCreditCardImporter
 from beantw.usecases.convert import ConvertUseCase
+from beantw.usecases.recurring import RecurringTransactionUseCase
 from beantw.usecases.refresh import RefreshUseCase
 
 app = typer.Typer(help="Beancount data importer for Taiwanese banks and credit cards")
@@ -116,6 +117,83 @@ def refresh(
         use_case.execute(str(directory))
 
         typer.echo(f"Successfully refreshed index files in {directory}")
+
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(code=1)
+    except Exception as e:
+        typer.echo(f"Unexpected error: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def recurring(
+    config_file: Path | None = typer.Option(
+        None,
+        "--config",
+        "-f",
+        help="Path to YAML configuration file with recurring transaction definitions (default: config/recurring.yaml if exists)",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+    ),
+    base_dir: Path = typer.Option(
+        Path.cwd(),
+        "--base-dir",
+        "-d",
+        help="Base directory for resolving relative paths (default: current directory)",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+    ),
+):
+    """Add recurring transactions to Beancount files.
+
+    Processes recurring transaction definitions from a configuration file and
+    adds the next occurrence of each transaction to the appropriate Beancount file
+    if it doesn't already exist.
+
+    The configuration file defines recurring transactions with their frequency,
+    amount, accounts, and target Beancount file path (supporting template variables).
+
+    By default, looks for config/recurring.yaml in the current directory.
+    """
+    try:
+        # Determine which config file to use
+        config_path = config_file
+        if config_path is None:
+            # Check for default config file locations
+            for default_name in ["config/recurring.yaml", "config/recurring.yml"]:
+                default_config = Path(default_name)
+                if default_config.exists():
+                    config_path = default_config
+                    break
+
+        if config_path is None:
+            typer.echo(
+                "Error: No configuration file found. Please create config/recurring.yaml or specify --config",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
+        # Load configuration
+        config = RecurringTransactionConfig(config_path)
+
+        if not config.recurring_transactions:
+            typer.echo("No recurring transactions defined in configuration file.")
+            return
+
+        # Create and execute use case
+        use_case = RecurringTransactionUseCase(
+            recurring_transactions=config.recurring_transactions,
+            base_dir=str(base_dir),
+        )
+        use_case.execute()
+
+        typer.echo(
+            f"Successfully processed {len(config.recurring_transactions)} recurring transaction(s)"
+        )
 
     except ValueError as e:
         typer.echo(f"Error: {e}", err=True)

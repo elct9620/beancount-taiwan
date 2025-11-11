@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -88,3 +89,73 @@ class HSBCCreditCardConfig:
 
         # Return default target account
         return self.target_account
+
+
+@dataclass
+class RecurringTransaction:
+    """Definition of a recurring transaction."""
+
+    description: str
+    amount: float
+    currency: str
+    source_account: str
+    target_account: str
+    frequency: str  # e.g., "monthly", "weekly", "yearly"
+    start_date: date
+    book: str  # Template path for the Beancount file
+
+
+class RecurringTransactionConfig:
+    """Configuration for recurring transactions.
+
+    The configuration defines recurring transactions that should be
+    automatically added to Beancount files.
+    """
+
+    def __init__(self, config_path: str | Path | None = None):
+        """Initialize configuration.
+
+        Args:
+            config_path: Path to YAML configuration file, or None for defaults
+        """
+        self.recurring_transactions: list[RecurringTransaction] = []
+
+        if config_path:
+            self._load_config(config_path)
+
+    def _load_config(self, config_path: str | Path) -> None:
+        """Load configuration from YAML file.
+
+        Args:
+            config_path: Path to YAML configuration file
+        """
+        path = Path(config_path)
+        if not path.exists():
+            raise ValueError(f"Configuration file not found: {config_path}")
+
+        with open(path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        if not config or "recurring_transactions" not in config:
+            return
+
+        # Load recurring transactions
+        for txn_data in config["recurring_transactions"]:
+            # Parse the start_date string to a date object
+            start_date_str = txn_data["start_date"]
+            if isinstance(start_date_str, str):
+                start_date = date.fromisoformat(start_date_str)
+            else:
+                start_date = start_date_str
+
+            transaction = RecurringTransaction(
+                description=txn_data["description"],
+                amount=txn_data["amount"],
+                currency=txn_data["currency"],
+                source_account=txn_data["source_account"],
+                target_account=txn_data["target_account"],
+                frequency=txn_data["frequency"],
+                start_date=start_date,
+                book=txn_data["book"],
+            )
+            self.recurring_transactions.append(transaction)

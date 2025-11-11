@@ -40,6 +40,7 @@ source = { editable = "." }
 dependencies = [
     { name = "beancount" },
     { name = "beangulp" },
+    { name = "python-dateutil" },
     { name = "pyyaml" },
     { name = "typer" },
 ]
@@ -55,6 +56,7 @@ dev = [
 requires-dist = [
     { name = "beancount", specifier = ">=3.0.0" },
     { name = "beangulp", specifier = ">=0.2.0" },
+    { name = "python-dateutil", specifier = ">=2.8.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "typer", specifier = ">=0.15.1" },
 ]
