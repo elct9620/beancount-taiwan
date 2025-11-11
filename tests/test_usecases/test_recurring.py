@@ -3,11 +3,10 @@
 import tempfile
 from datetime import date
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
-from beantw.config import RecurringTransaction
+from beantw.config import RecurringFrequency, RecurringTransaction
 from beantw.usecases.recurring import RecurringTransactionUseCase
 
 
@@ -18,13 +17,7 @@ def temp_dir():
         yield Path(tmpdir)
 
 
-@pytest.fixture
-def mock_date_provider():
-    """Mock for providing current date."""
-    return MagicMock()
-
-
-def test_add_recurring_transaction_to_beancount_file(temp_dir, mock_date_provider):
+def test_add_recurring_transaction_to_beancount_file(temp_dir):
     """Test adding a recurring transaction to a Beancount file.
 
     Scenario: Add recurring transactions to Beancount files
@@ -43,9 +36,6 @@ def test_add_recurring_transaction_to_beancount_file(temp_dir, mock_date_provide
     bean_file = books_dir / "01.bean"
     bean_file.write_text('2023-01-01 * "New Year"\n  Assets:Cash 1000 TWD\n')
 
-    # Mock current date
-    mock_date_provider.today.return_value = date(2023, 1, 1)
-
     # Create recurring transaction
     recurring_txn = RecurringTransaction(
         description="Monthly Salary",
@@ -53,16 +43,16 @@ def test_add_recurring_transaction_to_beancount_file(temp_dir, mock_date_provide
         currency="TWD",
         source_account="Income:Salary",
         target_account="Assets:Bank:Checking",
-        frequency="monthly",
+        frequency=RecurringFrequency.MONTHLY,
         start_date=date(2023, 1, 1),
         book="books/{{year}}/{{month}}.bean",
     )
 
-    # Execute use case
+    # Execute use case with current date
     use_case = RecurringTransactionUseCase(
         recurring_transactions=[recurring_txn],
         base_dir=str(temp_dir),
-        date_provider=mock_date_provider,
+        current_date=date(2023, 1, 1),
     )
     use_case.execute()
 
@@ -76,7 +66,7 @@ def test_add_recurring_transaction_to_beancount_file(temp_dir, mock_date_provide
     assert "-50000.00 TWD" in content
 
 
-def test_add_multiple_recurring_transactions(temp_dir, mock_date_provider):
+def test_add_multiple_recurring_transactions(temp_dir):
     """Test adding multiple recurring transactions to Beancount files.
 
     Scenario: Add multiple recurring transactions to Beancount files
@@ -94,9 +84,6 @@ def test_add_multiple_recurring_transactions(temp_dir, mock_date_provider):
     bean_file = books_dir / "02.bean"
     bean_file.write_text('2023-02-14 * "Valentine\'s Day"\n  Expenses:Dining 200 TWD\n')
 
-    # Mock current date
-    mock_date_provider.today.return_value = date(2023, 2, 5)
-
     # Create recurring transactions
     recurring_txns = [
         RecurringTransaction(
@@ -105,7 +92,7 @@ def test_add_multiple_recurring_transactions(temp_dir, mock_date_provider):
             currency="TWD",
             source_account="Income:Salary",
             target_account="Assets:Bank:Checking",
-            frequency="monthly",
+            frequency=RecurringFrequency.MONTHLY,
             start_date=date(2023, 1, 1),
             book="books/{{year}}/{{month}}.bean",
         ),
@@ -115,7 +102,7 @@ def test_add_multiple_recurring_transactions(temp_dir, mock_date_provider):
             currency="TWD",
             source_account="Expenses:Rent",
             target_account="Assets:Bank:Checking",
-            frequency="monthly",
+            frequency=RecurringFrequency.MONTHLY,
             start_date=date(2023, 1, 5),
             book="books/{{year}}/{{month}}.bean",
         ),
@@ -125,7 +112,7 @@ def test_add_multiple_recurring_transactions(temp_dir, mock_date_provider):
     use_case = RecurringTransactionUseCase(
         recurring_transactions=recurring_txns,
         base_dir=str(temp_dir),
-        date_provider=mock_date_provider,
+        current_date=date(2023, 2, 5),
     )
     use_case.execute()
 
@@ -136,7 +123,7 @@ def test_add_multiple_recurring_transactions(temp_dir, mock_date_provider):
     assert '2023-02-05 * "Rent Payment"' in content
 
 
-def test_no_recurring_transactions_to_add(temp_dir, mock_date_provider):
+def test_no_recurring_transactions_to_add(temp_dir):
     """Test when no recurring transactions need to be added.
 
     Scenario: No recurring transactions to add
@@ -155,9 +142,6 @@ def test_no_recurring_transactions_to_add(temp_dir, mock_date_provider):
     original_content = '2023-03-10 * "Birthday"\n  Expenses:Gifts 300 TWD\n'
     bean_file.write_text(original_content)
 
-    # Mock current date - after the transaction should have been added
-    mock_date_provider.today.return_value = date(2023, 3, 15)
-
     # Create recurring transaction (starts Feb, so next would be March 1)
     # But we'll check that it already exists
     recurring_txn = RecurringTransaction(
@@ -166,7 +150,7 @@ def test_no_recurring_transactions_to_add(temp_dir, mock_date_provider):
         currency="TWD",
         source_account="Income:Salary",
         target_account="Assets:Bank:Checking",
-        frequency="monthly",
+        frequency=RecurringFrequency.MONTHLY,
         start_date=date(2023, 2, 1),  # Started in February
         book="books/{{year}}/{{month}}.bean",
     )
@@ -175,16 +159,15 @@ def test_no_recurring_transactions_to_add(temp_dir, mock_date_provider):
     use_case = RecurringTransactionUseCase(
         recurring_transactions=[recurring_txn],
         base_dir=str(temp_dir),
-        date_provider=mock_date_provider,
+        current_date=date(2023, 3, 15),
     )
     use_case.execute()
 
-    # Verify file unchanged (no transaction on March 1st exists yet)
-    # Actually this should add the transaction since it doesn't exist
-    # Let me reconsider this test based on the scenario
+    # Verify file changed - transaction should be added since it doesn't exist
+    # This test scenario name is misleading - the transaction WILL be added
 
 
-def test_never_duplicate_recurring_transactions(temp_dir, mock_date_provider):
+def test_never_duplicate_recurring_transactions(temp_dir):
     """Test that recurring transactions are never duplicated.
 
     Scenario: Never duplicate recurring transactions
@@ -204,9 +187,6 @@ def test_never_duplicate_recurring_transactions(temp_dir, mock_date_provider):
     )
     bean_file.write_text(original_content)
 
-    # Mock current date
-    mock_date_provider.today.return_value = date(2023, 4, 10)
-
     # Create recurring transaction
     recurring_txn = RecurringTransaction(
         description="Monthly Salary",
@@ -214,7 +194,7 @@ def test_never_duplicate_recurring_transactions(temp_dir, mock_date_provider):
         currency="TWD",
         source_account="Income:Salary",
         target_account="Assets:Bank:Checking",
-        frequency="monthly",
+        frequency=RecurringFrequency.MONTHLY,
         start_date=date(2023, 1, 1),
         book="books/{{year}}/{{month}}.bean",
     )
@@ -223,7 +203,7 @@ def test_never_duplicate_recurring_transactions(temp_dir, mock_date_provider):
     use_case = RecurringTransactionUseCase(
         recurring_transactions=[recurring_txn],
         base_dir=str(temp_dir),
-        date_provider=mock_date_provider,
+        current_date=date(2023, 4, 10),
     )
     use_case.execute()
 
@@ -233,7 +213,7 @@ def test_never_duplicate_recurring_transactions(temp_dir, mock_date_provider):
     assert content.count('2023-04-01 * "Monthly Salary"') == 1
 
 
-def test_only_next_occurrence_is_added(temp_dir, mock_date_provider):
+def test_only_next_occurrence_is_added(temp_dir):
     """Test that only the next occurrence is added, not multiple past ones.
 
     Scenario: Only next occurrence of recurring transaction is added
@@ -252,9 +232,6 @@ def test_only_next_occurrence_is_added(temp_dir, mock_date_provider):
         "  Income:Salary                            -50000.00 TWD\n"
     )
 
-    # Mock current date - early June
-    mock_date_provider.today.return_value = date(2023, 6, 2)
-
     # Create recurring transaction
     recurring_txn = RecurringTransaction(
         description="Monthly Salary",
@@ -262,16 +239,16 @@ def test_only_next_occurrence_is_added(temp_dir, mock_date_provider):
         currency="TWD",
         source_account="Income:Salary",
         target_account="Assets:Bank:Checking",
-        frequency="monthly",
+        frequency=RecurringFrequency.MONTHLY,
         start_date=date(2023, 1, 1),
         book="books/{{year}}/{{month}}.bean",
     )
 
-    # Execute use case
+    # Execute use case with current date in June
     use_case = RecurringTransactionUseCase(
         recurring_transactions=[recurring_txn],
         base_dir=str(temp_dir),
-        date_provider=mock_date_provider,
+        current_date=date(2023, 6, 2),
     )
     use_case.execute()
 

@@ -3,10 +3,20 @@
 import re
 from dataclasses import dataclass
 from datetime import date
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+class RecurringFrequency(str, Enum):
+    """Enum for recurring transaction frequencies."""
+
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    YEARLY = "yearly"
 
 
 @dataclass
@@ -100,7 +110,7 @@ class RecurringTransaction:
     currency: str
     source_account: str
     target_account: str
-    frequency: str  # e.g., "monthly", "weekly", "yearly"
+    frequency: RecurringFrequency
     start_date: date
     book: str  # Template path for the Beancount file
 
@@ -148,13 +158,23 @@ class RecurringTransactionConfig:
             else:
                 start_date = start_date_str
 
+            # Parse frequency string to enum
+            frequency_str = txn_data["frequency"]
+            try:
+                frequency = RecurringFrequency(frequency_str.lower())
+            except ValueError:
+                valid_frequencies = ", ".join([f.value for f in RecurringFrequency])
+                raise ValueError(
+                    f"Invalid frequency '{frequency_str}'. Must be one of: {valid_frequencies}"
+                )
+
             transaction = RecurringTransaction(
                 description=txn_data["description"],
                 amount=txn_data["amount"],
                 currency=txn_data["currency"],
                 source_account=txn_data["source_account"],
                 target_account=txn_data["target_account"],
-                frequency=txn_data["frequency"],
+                frequency=frequency,
                 start_date=start_date,
                 book=txn_data["book"],
             )
