@@ -7,6 +7,10 @@ from pathlib import Path
 import pytest
 
 from beantw.config import RecurringFrequency, RecurringTransaction
+from beantw.services.beancount_file_service import BeancountRepository
+from beantw.services.book_path_resolver import BookPathResolver
+from beantw.services.recurring_calculator import RecurringCalculator
+from beantw.services.transaction_builder import TransactionBuilder
 from beantw.usecases.recurring import RecurringTransactionUseCase
 
 
@@ -15,6 +19,29 @@ def temp_dir():
     """Create a temporary directory for test files."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield Path(tmpdir)
+
+
+def create_use_case(
+    recurring_transactions, base_dir, current_date
+) -> RecurringTransactionUseCase:
+    """Helper function to create use case with all dependencies injected.
+
+    Acts as a composition root for tests.
+    """
+    calculator = RecurringCalculator()
+    path_resolver = BookPathResolver()
+    transaction_builder = TransactionBuilder()
+    repository = BeancountRepository()
+
+    return RecurringTransactionUseCase(
+        recurring_transactions=recurring_transactions,
+        base_dir=str(base_dir),
+        current_date=current_date,
+        calculator=calculator,
+        path_resolver=path_resolver,
+        transaction_builder=transaction_builder,
+        repository=repository,
+    )
 
 
 def test_add_recurring_transaction_to_beancount_file(temp_dir):
@@ -48,12 +75,8 @@ def test_add_recurring_transaction_to_beancount_file(temp_dir):
         book="books/{{year}}/{{month}}.bean",
     )
 
-    # Execute use case with current date
-    use_case = RecurringTransactionUseCase(
-        recurring_transactions=[recurring_txn],
-        base_dir=str(temp_dir),
-        current_date=date(2023, 1, 1),
-    )
+    # Execute use case with all dependencies injected
+    use_case = create_use_case([recurring_txn], temp_dir, date(2023, 1, 1))
     use_case.execute()
 
     # Verify the file was updated
@@ -108,12 +131,8 @@ def test_add_multiple_recurring_transactions(temp_dir):
         ),
     ]
 
-    # Execute use case
-    use_case = RecurringTransactionUseCase(
-        recurring_transactions=recurring_txns,
-        base_dir=str(temp_dir),
-        current_date=date(2023, 2, 5),
-    )
+    # Execute use case with all dependencies injected
+    use_case = create_use_case(recurring_txns, temp_dir, date(2023, 2, 5))
     use_case.execute()
 
     # Verify both transactions were added
@@ -155,12 +174,8 @@ def test_no_recurring_transactions_to_add(temp_dir):
         book="books/{{year}}/{{month}}.bean",
     )
 
-    # Execute use case
-    use_case = RecurringTransactionUseCase(
-        recurring_transactions=[recurring_txn],
-        base_dir=str(temp_dir),
-        current_date=date(2023, 3, 15),
-    )
+    # Execute use case with all dependencies injected
+    use_case = create_use_case([recurring_txn], temp_dir, date(2023, 3, 15))
     use_case.execute()
 
     # Verify file changed - transaction should be added since it doesn't exist
@@ -199,12 +214,8 @@ def test_never_duplicate_recurring_transactions(temp_dir):
         book="books/{{year}}/{{month}}.bean",
     )
 
-    # Execute use case
-    use_case = RecurringTransactionUseCase(
-        recurring_transactions=[recurring_txn],
-        base_dir=str(temp_dir),
-        current_date=date(2023, 4, 10),
-    )
+    # Execute use case with all dependencies injected
+    use_case = create_use_case([recurring_txn], temp_dir, date(2023, 4, 10))
     use_case.execute()
 
     # Verify file unchanged - no duplicate added
@@ -244,12 +255,8 @@ def test_only_next_occurrence_is_added(temp_dir):
         book="books/{{year}}/{{month}}.bean",
     )
 
-    # Execute use case with current date in June
-    use_case = RecurringTransactionUseCase(
-        recurring_transactions=[recurring_txn],
-        base_dir=str(temp_dir),
-        current_date=date(2023, 6, 2),
-    )
+    # Execute use case with all dependencies injected
+    use_case = create_use_case([recurring_txn], temp_dir, date(2023, 6, 2))
     use_case.execute()
 
     # Verify June file was created with the transaction

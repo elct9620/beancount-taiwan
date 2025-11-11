@@ -114,18 +114,21 @@ class RecurringTransactionUseCase:
         self,
         recurring_transactions: list[RecurringTransaction],
         base_dir: str,
-        current_date: date | None = None,
-        calculator: RecurringCalculatorProtocol | None = None,
-        path_resolver: BookPathResolverProtocol | None = None,
-        transaction_builder: TransactionBuilderProtocol | None = None,
-        repository: BeancountRepositoryProtocol | None = None,
+        current_date: date,
+        calculator: RecurringCalculatorProtocol,
+        path_resolver: BookPathResolverProtocol,
+        transaction_builder: TransactionBuilderProtocol,
+        repository: BeancountRepositoryProtocol,
     ):
         """Initialize the use case with required services.
+
+        All dependencies must be injected by the caller (composition root).
+        The use case does not create its own dependencies.
 
         Args:
             recurring_transactions: List of recurring transaction definitions
             base_dir: Base directory for resolving relative paths
-            current_date: Current date (defaults to today, provided for testing)
+            current_date: Current date for determining occurrences
             calculator: Service for calculating next occurrences
             path_resolver: Service for resolving template paths
             transaction_builder: Service for building transactions
@@ -133,27 +136,7 @@ class RecurringTransactionUseCase:
         """
         self.recurring_transactions = recurring_transactions
         self.base_dir = Path(base_dir)
-        self.current_date = current_date or date.today()
-
-        # Initialize services with defaults if not provided
-        # Import here to avoid circular dependencies and maintain proper dependency direction
-        if calculator is None:
-            from beantw.services.recurring_calculator import RecurringCalculator
-
-            calculator = RecurringCalculator()
-        if path_resolver is None:
-            from beantw.services.book_path_resolver import BookPathResolver
-
-            path_resolver = BookPathResolver()
-        if transaction_builder is None:
-            from beantw.services.transaction_builder import TransactionBuilder
-
-            transaction_builder = TransactionBuilder()
-        if repository is None:
-            from beantw.services.beancount_file_service import BeancountRepository
-
-            repository = BeancountRepository()
-
+        self.current_date = current_date
         self.calculator = calculator
         self.path_resolver = path_resolver
         self.transaction_builder = transaction_builder

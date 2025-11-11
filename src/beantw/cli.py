@@ -184,10 +184,30 @@ def recurring(
             typer.echo("No recurring transactions defined in configuration file.")
             return
 
-        # Create and execute use case
+        # Composition Root: Instantiate all services here
+        # This is the ONLY place where concrete implementations are created
+        from datetime import date
+
+        from beantw.services.beancount_file_service import BeancountRepository
+        from beantw.services.book_path_resolver import BookPathResolver
+        from beantw.services.recurring_calculator import RecurringCalculator
+        from beantw.services.transaction_builder import TransactionBuilder
+
+        calculator = RecurringCalculator()
+        path_resolver = BookPathResolver()
+        transaction_builder = TransactionBuilder()
+        repository = BeancountRepository()
+        current_date = date.today()
+
+        # Create and execute use case with all dependencies injected
         use_case = RecurringTransactionUseCase(
             recurring_transactions=config.recurring_transactions,
             base_dir=str(base_dir),
+            current_date=current_date,
+            calculator=calculator,
+            path_resolver=path_resolver,
+            transaction_builder=transaction_builder,
+            repository=repository,
         )
         use_case.execute()
 
