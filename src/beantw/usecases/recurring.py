@@ -2,24 +2,104 @@
 
 from datetime import date
 from pathlib import Path
+from typing import Protocol
+
+from beancount.core import data
 
 from beantw.config import RecurringTransaction
-from beantw.services.beancount_file_service import (
-    BeancountRepository,
-    BeancountRepositoryProtocol,
-)
-from beantw.services.book_path_resolver import (
-    BookPathResolver,
-    BookPathResolverProtocol,
-)
-from beantw.services.recurring_calculator import (
-    RecurringCalculator,
-    RecurringCalculatorProtocol,
-)
-from beantw.services.transaction_builder import (
-    TransactionBuilder,
-    TransactionBuilderProtocol,
-)
+
+
+# Use case defines its own protocols - services implement these
+# This follows Clean Architecture: dependencies point FROM services TO use case
+
+
+class RecurringCalculatorProtocol(Protocol):
+    """Protocol for calculating recurring transaction dates.
+
+    Services implementing this protocol handle the business logic of
+    determining when a recurring transaction should occur.
+    """
+
+    def calculate_next_occurrence(
+        self, recurring_txn: RecurringTransaction, current_date: date
+    ) -> date | None:
+        """Calculate the next occurrence date for a recurring transaction.
+
+        Args:
+            recurring_txn: Recurring transaction definition
+            current_date: Current date
+
+        Returns:
+            Next occurrence date if applicable, None otherwise
+        """
+        ...
+
+
+class BookPathResolverProtocol(Protocol):
+    """Protocol for resolving book file paths.
+
+    Services implementing this protocol handle the logic of converting
+    template strings into concrete file paths.
+    """
+
+    def resolve_path(
+        self, template: str, transaction_date: date, base_dir: Path
+    ) -> Path:
+        """Resolve a book template path to an actual file path.
+
+        Args:
+            template: Template path with variables like {{year}}, {{month}}
+            transaction_date: Date for the transaction
+            base_dir: Base directory for resolving relative paths
+
+        Returns:
+            Resolved absolute path
+        """
+        ...
+
+
+class TransactionBuilderProtocol(Protocol):
+    """Protocol for building Beancount transactions.
+
+    Services implementing this protocol handle the creation of
+    Beancount transaction objects from recurring transaction definitions.
+    """
+
+    def build_transaction(
+        self, recurring_txn: RecurringTransaction, transaction_date: date
+    ) -> data.Transaction:
+        """Build a Beancount transaction from a recurring transaction definition.
+
+        Args:
+            recurring_txn: Recurring transaction definition
+            transaction_date: Date for the transaction
+
+        Returns:
+            Beancount transaction
+        """
+        ...
+
+
+class BeancountRepositoryProtocol(Protocol):
+    """Protocol for Beancount file repository operations.
+
+    Services implementing this protocol handle persistence of
+    transactions to Beancount files.
+    """
+
+    def add_transaction_if_not_exists(
+        self, filepath: Path, transaction: data.Transaction
+    ) -> bool:
+        """Add a transaction to a file if it doesn't already exist.
+
+        Args:
+            filepath: Path to the Beancount file
+            transaction: Transaction to add
+
+        Returns:
+            True if transaction was added, False if it already existed
+        """
+        ...
 
 
 class RecurringTransactionUseCase:
@@ -56,10 +136,28 @@ class RecurringTransactionUseCase:
         self.current_date = current_date or date.today()
 
         # Initialize services with defaults if not provided
-        self.calculator = calculator or RecurringCalculator()
-        self.path_resolver = path_resolver or BookPathResolver()
-        self.transaction_builder = transaction_builder or TransactionBuilder()
-        self.repository = repository or BeancountRepository()
+        # Import here to avoid circular dependencies and maintain proper dependency direction
+        if calculator is None:
+            from beantw.services.recurring_calculator import RecurringCalculator
+
+            calculator = RecurringCalculator()
+        if path_resolver is None:
+            from beantw.services.book_path_resolver import BookPathResolver
+
+            path_resolver = BookPathResolver()
+        if transaction_builder is None:
+            from beantw.services.transaction_builder import TransactionBuilder
+
+            transaction_builder = TransactionBuilder()
+        if repository is None:
+            from beantw.services.beancount_file_service import BeancountRepository
+
+            repository = BeancountRepository()
+
+        self.calculator = calculator
+        self.path_resolver = path_resolver
+        self.transaction_builder = transaction_builder
+        self.repository = repository
 
     def execute(self) -> None:
         """Execute the recurring transaction processing.

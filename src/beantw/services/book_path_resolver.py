@@ -1,27 +1,12 @@
-"""Service for resolving Beancount book file paths from templates."""
+"""Service for resolving Beancount book file paths from templates.
+
+This service implements the BookPathResolverProtocol defined by the use case,
+following Clean Architecture where dependencies point from outer layers toward
+inner layers (use cases).
+"""
 
 from datetime import date
 from pathlib import Path
-from typing import Protocol
-
-
-class BookPathResolverProtocol(Protocol):
-    """Protocol for resolving book file paths."""
-
-    def resolve_path(
-        self, template: str, transaction_date: date, base_dir: Path
-    ) -> Path:
-        """Resolve a book template path to an actual file path.
-
-        Args:
-            template: Template path with variables like {{year}}, {{month}}
-            transaction_date: Date for the transaction
-            base_dir: Base directory for resolving relative paths
-
-        Returns:
-            Resolved absolute path
-        """
-        ...
 
 
 class BookPathResolver:

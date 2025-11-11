@@ -1,29 +1,15 @@
-"""Service for calculating recurring transaction occurrences."""
+"""Service for calculating recurring transaction occurrences.
+
+This service implements the RecurringCalculatorProtocol defined by the use case,
+following Clean Architecture where dependencies point from outer layers toward
+inner layers (use cases).
+"""
 
 from datetime import date, timedelta
-from typing import Protocol
 
 from dateutil.relativedelta import relativedelta
 
 from beantw.config import RecurringFrequency, RecurringTransaction
-
-
-class RecurringCalculatorProtocol(Protocol):
-    """Protocol for calculating recurring transaction dates."""
-
-    def calculate_next_occurrence(
-        self, recurring_txn: RecurringTransaction, current_date: date
-    ) -> date | None:
-        """Calculate the next occurrence date for a recurring transaction.
-
-        Args:
-            recurring_txn: Recurring transaction definition
-            current_date: Current date
-
-        Returns:
-            Next occurrence date if applicable, None otherwise
-        """
-        ...
 
 
 class RecurringCalculator:

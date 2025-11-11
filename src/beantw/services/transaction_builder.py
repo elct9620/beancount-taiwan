@@ -1,30 +1,16 @@
-"""Service for building Beancount transactions."""
+"""Service for building Beancount transactions.
+
+This service implements the TransactionBuilderProtocol defined by the use case,
+following Clean Architecture where dependencies point from outer layers toward
+inner layers (use cases).
+"""
 
 from datetime import date
 from decimal import Decimal
-from typing import Protocol
 
 from beancount.core import amount, data
 
 from beantw.config import RecurringTransaction
-
-
-class TransactionBuilderProtocol(Protocol):
-    """Protocol for building Beancount transactions."""
-
-    def build_transaction(
-        self, recurring_txn: RecurringTransaction, transaction_date: date
-    ) -> data.Transaction:
-        """Build a Beancount transaction from a recurring transaction definition.
-
-        Args:
-            recurring_txn: Recurring transaction definition
-            transaction_date: Date for the transaction
-
-        Returns:
-            Beancount transaction
-        """
-        ...
 
 
 class TransactionBuilder:

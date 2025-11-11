@@ -1,33 +1,15 @@
 """Repository for managing Beancount transaction files.
 
-This module provides higher-level operations for working with Beancount files,
-following the repository pattern to abstract file system operations.
+This repository implements the BeancountRepositoryProtocol defined by the use case,
+following Clean Architecture where dependencies point from outer layers toward
+inner layers (use cases).
 """
 
 from datetime import date
 from pathlib import Path
-from typing import Protocol
 
 from beancount.core import data
 from beancount.parser import parser, printer
-
-
-class BeancountRepositoryProtocol(Protocol):
-    """Protocol for Beancount file repository operations."""
-
-    def add_transaction_if_not_exists(
-        self, filepath: Path, transaction: data.Transaction
-    ) -> bool:
-        """Add a transaction to a file if it doesn't already exist.
-
-        Args:
-            filepath: Path to the Beancount file
-            transaction: Transaction to add
-
-        Returns:
-            True if transaction was added, False if it already existed
-        """
-        ...
 
 
 class BeancountRepository:
