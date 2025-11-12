@@ -9,6 +9,7 @@ dependencies = [
     "beangulp>=0.2.0",
     "pyyaml>=6.0.0",
     "typer>=0.15.1",
+    "python-dateutil>=2.8.0",
 ]
 
 [project.scripts]
