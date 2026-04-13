@@ -24,7 +24,7 @@ packages = ["src/beantw"]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4.2",
+    "pytest>=9.0.3",
     "python-lsp-server>=1.13.1",
     "ruff>=0.14.3",
 ]
