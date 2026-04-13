@@ -5,7 +5,7 @@ description = "Beancount data importer tailored for Taiwanese banks, credit card
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "beancount>=3.0.0",
+    "beancount>=3.2.0",
     "beangulp>=0.2.0",
     "pyyaml>=6.0.0",
     "typer>=0.15.1",
